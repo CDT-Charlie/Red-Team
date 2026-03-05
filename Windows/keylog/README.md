@@ -7,6 +7,7 @@ by bryant :D
 <br>
 - Keylogger writes to log.txt file
 - Exfiltrates data by attempting to connect to an IP socket and empty the contents of txt.
+- If someone makes a C2, please tell me so I can change ^
 
 ## TO-DO
 - test on windows boxes.
