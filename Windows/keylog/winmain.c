@@ -1,3 +1,7 @@
+/*
+Author: Bryant Chang
+Emial: bc9028@rit.edu
+*/
 #include <winsock2.h>
 #include "libs/winexfil.h"
 #include "winconsts.h"
