@@ -1,0 +1,52 @@
+---
+# verify.yml - Checks Tavern GraphQL API and confirms all 9 beacons are online
+# Usage: ansible-playbook verify.yml
+
+- name: Verify all Realm beacons checked in to Tavern
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Query Tavern GraphQL for active beacons
+      ansible.builtin.uri:
+        url: "http://{{ tavern_ip }}:{{ tavern_port }}/graphql"
+        method: POST
+        body_format: json
+        body:
+          query: |
+            {
+              beacons {
+                id
+                lastSeenAt
+                host {
+                  name
+                  platform
+                  primaryIP
+                }
+              }
+            }
+        headers:
+          Content-Type: "application/json"
+        return_content: true
+        status_code: 200
+      register: tavern_response
+
+    - name: Parse beacon list
+      ansible.builtin.set_fact:
+        beacons: "{{ tavern_response.json.data.beacons }}"
+
+    - name: Print all beacons
+      ansible.builtin.debug:
+        msg: >
+          Beacon: {{ item.host.name }}
+          | Platform: {{ item.host.platform }}
+          | IP: {{ item.host.primaryIP }}
+          | Last seen: {{ item.lastSeenAt }}
+      loop: "{{ beacons }}"
+
+    - name: Assert all 9 beacons are online
+      ansible.builtin.assert:
+        that:
+          - beacons | length >= 9
+        fail_msg: "Only {{ beacons | length }}/9 beacons online! Check failed deployments."
+        success_msg: "All {{ beacons | length }}/9 beacons confirmed online in Tavern!"

@@ -1,0 +1,55 @@
+---
+# cleanup.yml - Removes Realm agents from all VMs (useful between competition rounds)
+# Usage: ansible-playbook -i inventory/hosts.ini cleanup.yml
+
+- name: Remove Realm agent from Linux VMs
+  hosts: linux
+  become: true
+  tasks:
+    - name: Stop and disable agent service
+      ansible.builtin.systemd:
+        name: "{{ agent_service_name }}"
+        state: stopped
+        enabled: false
+      ignore_errors: true
+
+    - name: Remove systemd service file
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ agent_service_name }}.service"
+        state: absent
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Remove agent binary
+      ansible.builtin.file:
+        path: "{{ agent_dest_path }}"
+        state: absent
+
+    - name: Confirm removal
+      ansible.builtin.debug:
+        msg: "Agent removed from {{ inventory_hostname }}"
+
+- name: Remove Realm agent from Windows VMs
+  hosts: windows
+  tasks:
+    - name: Kill agent process if running
+      ansible.windows.win_shell: |
+        Stop-Process -Name "svc-update" -Force -ErrorAction SilentlyContinue
+        Write-Output "Process stopped"
+      ignore_errors: true
+
+    - name: Remove scheduled task
+      community.windows.win_scheduled_task:
+        name: "{{ agent_task_name }}"
+        state: absent
+
+    - name: Remove agent binary
+      ansible.windows.win_file:
+        path: "{{ agent_dest_path }}"
+        state: absent
+
+    - name: Confirm removal
+      ansible.builtin.debug:
+        msg: "Agent removed from {{ inventory_hostname }}"

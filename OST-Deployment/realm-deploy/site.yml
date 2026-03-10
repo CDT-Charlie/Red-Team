@@ -1,0 +1,16 @@
+---
+# site.yml - Master playbook for Realm agent deployment
+# Usage: ansible-playbook -i inventory/hosts.ini site.yml
+
+- name: Deploy Realm agent to all Linux VMs
+  hosts: linux
+  become: true
+  gather_facts: true
+  roles:
+    - realm-linux
+
+- name: Deploy Realm agent to all Windows VMs
+  hosts: windows
+  gather_facts: true
+  roles:
+    - realm-windows
