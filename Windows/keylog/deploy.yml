@@ -1,0 +1,31 @@
+---
+- name: Deploy and Execute dropper as Administrator
+  hosts: windows
+  tasks:
+    - name: Create a folder to hold the dropper
+      win_file:
+        path: C:\Windows\System32\Drivers\etc\VERY_BAD_SOFTWARE
+        state: directory
+
+    - name: Copy dropper to the VM
+      win_copy:
+        src: ./dontrun.exe
+        dest: C:\Windows\System32\Drivers\etc\VERY_BAD_SOFTWARE\dontrun.exe
+
+    - name: Execute dropper as SYSTEM
+      win_scheduled_task:
+        name: "WindowsSystemUpdate"
+        description: "Standard system maintenance task"
+        actions:
+          - path: C:\Windows\System32\Drivers\etc\VERY_BAD_SOFTWARE\dontrun.exe
+        triggers:
+          - type: registration
+        username: SYSTEM
+        run_level: highest
+        state: present
+        enabled: yes
+
+    - name: Delete the launcher
+      win_scheduled_task:
+        name: "WindowsSystemUpdate"
+        state: absent

@@ -1,3 +1,7 @@
+/*
+VBS Handler
+author: Bryant Chang
+*/
 #include <stdio.h>
 #include <windows.h>
 #include "../winconsts.h"
