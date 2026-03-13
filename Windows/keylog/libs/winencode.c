@@ -1,3 +1,8 @@
+/*
+Encoding fucntion for Powershell
+author: ChatGPT
+*/
+
 #include <windows.h>
 #include <wincrypt.h>
 

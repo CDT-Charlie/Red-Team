@@ -1,3 +1,10 @@
+/*
+Keylogger 
+Based on the implementation by abhijithb200
+Original source: https://github.com/abhijithb200/Keylogger/blob/main/keylogger.c
+With modifications
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

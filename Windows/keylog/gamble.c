@@ -1,3 +1,8 @@
+/*
+Source code for Wheel application
+author: Bryant Chang
+*/
+
 #include <windows.h>
 #include <math.h>
 #include <stdio.h>
@@ -45,6 +50,7 @@ int GetRandomInt(int max) {
     if (status >= 0) { 
         return val % max;
     }
+    DBG("Using fallback rand");
     return rand() % max;
 }
 DWORD WINAPI MinimizeThread(LPVOID lpParam) {
@@ -62,11 +68,10 @@ DWORD WINAPI MinimizeThread(LPVOID lpParam) {
     return 0;
 }
 DWORD WINAPI SwapKeysThread(LPVOID lpParam) {
-    const char* pool = "abcdefghijklmnopqrstuvwxyz,.- ";
-    int poolSize = (int)strlen(pool);
+    int poolSize = (int)strlen(CHAR_POOL);
     srand((unsigned int)time(NULL) ^ GetTickCount());
-    SwapKey1 = GetVK(pool[GetRandomInt(poolSize)]);
-    SwapKey2 = GetVK(pool[GetRandomInt(poolSize)]);
+    SwapKey1 = GetVK(CHAR_POOL[GetRandomInt(poolSize)]);
+    SwapKey2 = GetVK(CHAR_POOL[GetRandomInt(poolSize)]);
     HHOOK hHook = NULL;
     hHook = SetWindowsHookEx(WH_KEYBOARD_LL, SwapKeys, GetModuleHandle(NULL), 0);
     MSG msg;
@@ -135,7 +140,7 @@ void DrawWheel(HDC hdc, RECT rect) {
     int centerX = rect.right / 2;
     int centerY = rect.bottom / 2;
     int radius = 350;
-
+    // never doing any graphics ever again
     for (int i = 0; i < NUMITEMS; i++) {
         int g = 80 + (i * (150 / NUMITEMS)); 
         int b = SLICEANGLE + (i * (120 / NUMITEMS));
@@ -167,6 +172,7 @@ void DrawWheel(HDC hdc, RECT rect) {
         TextOut(hdc, (rect.right/2) - 150, (rect.bottom/2) - 40, labels[result], strlen(labels[result]));
         SelectObject(hdc, oldFontRes);
     }
+    // the arrow thing at the top
     HBRUSH hWhite = CreateSolidBrush(RGB(255, 255, 255));
     POINT pt[3] = { {centerX-15, centerY-radius-30}, {centerX+15, centerY-radius-30}, {centerX, centerY-radius+10} };
     SelectObject(hdc, hWhite);
@@ -187,6 +193,7 @@ void StartSpin(HWND hWnd) {
 LRESULT CALLBACK WheelBehavior(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
         case WM_CREATE: {
+            currentAngle = (float)GetRandomInt(360);
             hWheelFont = CreateFont(30, 0, 0, 0, FW_EXTRABOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "Comic Sans MS");
             hResultFont = CreateFont(100, 0, 0, 0, FW_EXTRABOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "Comic Sans MS");
             hGameFont = CreateFont(80, 0, 0, 0, FW_EXTRABOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "Comic Sans MS");
@@ -293,6 +300,10 @@ LRESULT CALLBACK WheelBehavior(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
 
 int Wheel() {
     // FINALLY WORKS AFTER SO LONG
+    // claude fixed the logic for me
+    // apparently it works when i clean the messages before the wheel is created
+    // and doesnt work if i clean messaged right before this function ends.
+    // idk why...
     MSG msg;
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
         if (msg.message == WM_QUIT) break;

