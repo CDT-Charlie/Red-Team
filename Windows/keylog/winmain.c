@@ -58,9 +58,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         }
         RegCloseKey(hKey);
     }
-    char vbscmd[MAX_PATH + 30];
-    snprintf(vbscmd, sizeof(vbscmd), "wscript.exe //B \"%s\"", VBS_PATH);
+    // dont run these while in ansible
+    // char vbscmd[MAX_PATH + 30];
+    // snprintf(vbscmd, sizeof(vbscmd), "wscript.exe //B \"%s\"", VBS_PATH);
 
-    WinExec(vbscmd, 0);
+    // WinExec(vbscmd, 0);
     return 0;
 }
