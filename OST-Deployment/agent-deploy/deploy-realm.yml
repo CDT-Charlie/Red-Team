@@ -1,0 +1,19 @@
+---
+# =============================================================================
+#  deploy-realm.yml  —  Deploy Realm (Imix) agent only
+#  Usage:  ansible-playbook deploy-realm.yml
+#          ansible-playbook deploy-realm.yml --limit windows
+#          ansible-playbook deploy-realm.yml --limit linux
+# =============================================================================
+
+- name: Deploy Realm (Imix) agent — Linux
+  hosts: linux
+  gather_facts: true
+  roles:
+    - realm
+
+- name: Deploy Realm (Imix) agent — Windows
+  hosts: windows
+  gather_facts: true
+  roles:
+    - realm

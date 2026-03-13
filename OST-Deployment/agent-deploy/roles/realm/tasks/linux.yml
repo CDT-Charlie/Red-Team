@@ -1,0 +1,52 @@
+---
+# Deploys the Realm (Imix) agent on Debian 13 and Ubuntu 24.04
+
+- name: "[Realm/Linux] Install prerequisites"
+  package:
+    name:
+      - curl
+      - wget
+    state: present
+
+- name: "[Realm/Linux] Download Imix binary"
+  get_url:
+    url:  "{{ realm_linux_binary_url }}"
+    dest: "{{ realm_linux_bin_path }}"
+    mode: "0755"
+    force: true
+
+- name: "[Realm/Linux] Install systemd service"
+  copy:
+    dest: "/etc/systemd/system/{{ realm_linux_service_name }}.service"
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=System Update Daemon
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      ExecStart={{ realm_linux_bin_path }}
+      Restart=always
+      RestartSec=10
+      StandardOutput=null
+      StandardError=null
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: "[Realm/Linux] Enable and start service"
+  systemd:
+    name: "{{ realm_linux_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: "[Realm/Linux] Verify service is active"
+  command: "systemctl is-active {{ realm_linux_service_name }}"
+  register: realm_svc_state
+  changed_when: false
+
+- name: "[Realm/Linux] Print service state"
+  debug:
+    msg: "Realm service state on {{ inventory_hostname }}: {{ realm_svc_state.stdout }}"

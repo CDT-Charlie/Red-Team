@@ -1,0 +1,22 @@
+---
+# =============================================================================
+#  deploy-sliver.yml  —  Deploy Sliver implant only
+#  Pre-requisite: generate implants on your Sliver C2 first, then host them
+#  on your staging HTTP server (see group_vars/all.yml for filenames).
+#
+#  Usage:  ansible-playbook deploy-sliver.yml
+#          ansible-playbook deploy-sliver.yml --limit windows
+#          ansible-playbook deploy-sliver.yml --limit linux
+# =============================================================================
+
+- name: Deploy Sliver implant — Linux
+  hosts: linux
+  gather_facts: true
+  roles:
+    - sliver
+
+- name: Deploy Sliver implant — Windows
+  hosts: windows
+  gather_facts: true
+  roles:
+    - sliver

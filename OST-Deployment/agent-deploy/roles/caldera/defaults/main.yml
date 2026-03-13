@@ -1,0 +1,8 @@
+# Caldera role defaults — override in group_vars/all.yml or at playbook level
+# Sandcat binaries are served live from the Caldera server itself (no staging needed)
+caldera_linux_bin_path:   "/usr/local/bin/sys-perfmon"
+caldera_windows_bin_path: 'C:\Windows\System32\perfmon-svc.exe'
+
+caldera_linux_service_name:   "sys-perfmon"
+caldera_windows_task_name:    "Performance Monitor Service"
+caldera_windows_process_name: "perfmon-svc"

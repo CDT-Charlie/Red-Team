@@ -1,0 +1,13 @@
+---
+# =============================================================================
+#  deploy-ubuntu.yml  —  Deploy Realm + Sliver + Caldera to Ubuntu Desktop 24.04 only
+#  Usage:  ansible-playbook deploy-ubuntu.yml
+# =============================================================================
+
+- name: Deploy all agents — Ubuntu
+  hosts: ubuntu
+  gather_facts: true
+  roles:
+    - realm
+    - sliver
+    - caldera
