@@ -75,11 +75,13 @@ DWORD WINAPI SwapKeysThread(LPVOID lpParam) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+        Sleep(1);
     }
     UnhookWindowsHookEx(hHook);
     return 0;
 }
 void TriggerEffect(int index) {
+    DBG("Triggering effects...")
     KillTimer(hMainWnd, ID_TIMER_RESULT);
     annoyThread = 1;
     switch(index) {
@@ -103,6 +105,7 @@ void TriggerEffect(int index) {
 }
 
 LRESULT CALLBACK LockKills(int nCode, WPARAM wParam, LPARAM lParam) {
+    DBG("Locking user screen...");
     if (nCode == HC_ACTION) {
         KBDLLHOOKSTRUCT *pKbd = (KBDLLHOOKSTRUCT *)lParam;
         if (GetAsyncKeyState(VK_LCONTROL) & 0x8000) {
@@ -229,7 +232,7 @@ LRESULT CALLBACK WheelBehavior(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
                     KillTimer(hWnd, ID_TIMER_REACTION);
                     reactionGameState = 0; 
                     reactionColor = RGB(200, 0, 0);
-                    MessageBox(hWnd, "Too early!", "FAIL", MB_OK | MB_ICONERROR);
+                    MessageBox(hWnd, "Too early!", "FAIL", MB_OK | MB_ICONERROR); // got lazy
                     TriggerEffect(5);
                 } else if (reactionGameState == 1) {
                     DWORD elapsed = GetTickCount() - reactionStartTime;
@@ -314,38 +317,32 @@ int Wheel() {
         DestroyWindow(hMainWnd);
         hMainWnd = NULL;
     }
-
     hMainWnd = CreateWindowEx(WS_EX_TOPMOST, "WheelLockClass", "THE WHEEL",
         WS_POPUP | WS_VISIBLE, 0, 0,
         GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN),
         NULL, NULL, hInst, NULL);
-
     if (hMainWnd == NULL) {
         char err[64];
         sprintf(err, "Window Creation Failed! Error: %lu\n", GetLastError());
-        OutputDebugStringA(err);
+        DBG(err);
         return 0;
     }
-
     hKeyHook = SetWindowsHookEx(WH_KEYBOARD_LL, LockKills, hInst, 0);
-
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
     UnlockSystem();
-
     if (hMainWnd) {
         DestroyWindow(hMainWnd);
         hMainWnd = NULL;
     }
-
     Sleep(1000);
     return (int)msg.wParam;
 }
 DWORD WINAPI WheelThread(LPVOID lpParam) {
     while (TRUE) {
+        DBG("Spawning wheel...");
         int result = Wheel(); 
         Sleep(WHEEL_RATE); 
         annoyThread = 0; 
