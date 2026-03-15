@@ -11,7 +11,6 @@ DWORD SwapKey1 = 0;
 DWORD SwapKey2 = 0;
 
 DWORD GetVK(char c) {
-    DBG(c);
     if (c >= 'a' && c <= 'z') return 0x41 + (c - 'a');
     switch (c) {
         case '.': return 0xBE;

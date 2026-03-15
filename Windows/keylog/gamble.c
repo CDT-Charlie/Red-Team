@@ -86,7 +86,7 @@ DWORD WINAPI SwapKeysThread(LPVOID lpParam) {
     return 0;
 }
 void TriggerEffect(int index) {
-    DBG("Triggering effects...")
+    DBG("Triggering effects...");
     KillTimer(hMainWnd, ID_TIMER_RESULT);
     annoyThread = 1;
     switch(index) {
