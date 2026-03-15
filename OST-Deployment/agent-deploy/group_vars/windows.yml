@@ -1,0 +1,7 @@
+# Windows-specific connection settings (WinRM)
+ansible_user:                          "{{ deploy_user }}"
+ansible_password:                      "{{ deploy_password }}"
+ansible_connection:                    winrm
+ansible_winrm_transport:               ntlm
+ansible_winrm_server_cert_validation:  ignore
+ansible_port:                          5985

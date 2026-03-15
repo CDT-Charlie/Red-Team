@@ -1,0 +1,8 @@
+---
+- name: Deploy Caldera on Linux
+  include_tasks: linux.yml
+  when: ansible_os_family != "Windows"
+
+- name: Deploy Caldera on Windows
+  include_tasks: windows.yml
+  when: ansible_os_family == "Windows"

