@@ -12,7 +12,7 @@ SMB_PASS=$3
 
 # Check if all arguments are provided
 if [ -z "$TARGET_IP" ] || [ -z "$SMB_USER" ] || [ -z "$SMB_PASS" ]; then
-    echo "Usage: ./sewer_ghost_inline.sh <IP> <User> <Pass>"
+    echo "Usage: ./run.sh <IP> <User> <Pass>"
     exit 1
 fi
 
