@@ -44,17 +44,17 @@ all:
           # ansible_host: 192.168.0.28
           ansible_host: 10.1.1.3   # DNS
 
-    debian:
-      hosts:
-        bt1-dungeon:  
-          # ansible_host: 192.168.0.29
-          ansible_host: 10.1.1.4   # GitLab
-        bt1-cathedral:
-          # ansible_host: 192.168.0.30
-          ansible_host: 10.1.1.5   # IRC
-        bt1-gallows:
-          # ansible_host: 192.168.0.31
-          ansible_host: 10.1.1.6   # Nginx
+    # debian:
+    #   hosts:
+    #     bt1-dungeon:  
+    #       # ansible_host: 192.168.0.29
+    #       ansible_host: 10.1.1.4   # GitLab
+    #     bt1-cathedral:
+    #       # ansible_host: 192.168.0.30
+    #       ansible_host: 10.1.1.5   # IRC
+    #     bt1-gallows:
+    #       # ansible_host: 192.168.0.31
+    #       ansible_host: 10.1.1.6   # Nginx
 
     ubuntu:
       hosts:
@@ -71,44 +71,41 @@ all:
     # =========================================================================
     # Blue Team 2 — 10.2.1.0/24
     # =========================================================================
-    windows_bt2:
-      hosts:
-        bt2-armory:
-          # ansible_host: 192.168.0.35
-          ansible_host: 10.2.1.1   # IIS
-        bt2-sewers:
-          # ansible_host: 192.168.0.36
-          ansible_host: 10.2.1.2   # SMB
-        bt2-fortress:
-          # ansible_host: 192.168.0.37
-          ansible_host: 10.2.1.3   # DNS
+    # windows_bt2:
+    #   hosts:
+    #     bt2-armory:
+    #       # ansible_host: 192.168.0.35
+    #       ansible_host: 10.2.1.1   # IIS
+    #     bt2-sewers:
+    #       # ansible_host: 192.168.0.36
+    #       ansible_host: 10.2.1.2   # SMB
+    #     bt2-fortress:
+    #       # ansible_host: 192.168.0.37
+    #       ansible_host: 10.2.1.3   # DNS
 
-    debian_bt2:
-      hosts:
-        bt2-dungeon:
-          # ansible_host: 192.168.0.38
-          ansible_host: 10.2.1.4   # GitLab
-        bt2-cathedral:
-          # ansible_host: 192.168.0.39
-          ansible_host: 10.2.1.5   # IRC
-        bt2-gallows:
-          # ansible_host: 192.168.0.40
-          ansible_host: 10.2.1.6   # Nginx
+    # debian_bt2:
+    #   hosts:
+    #     bt2-dungeon:
+    #       # ansible_host: 192.168.0.38
+    #       ansible_host: 10.2.1.4   # GitLab
+    #     bt2-cathedral:
+    #       # ansible_host: 192.168.0.39
+    #       ansible_host: 10.2.1.5   # IRC
+    #     bt2-gallows:
+    #       # ansible_host: 192.168.0.40
+    #       ansible_host: 10.2.1.6   # Nginx
 
-    ubuntu_bt2:
-      hosts:
-        bt2-market:
-          # ansible_host: 192.168.0.41
-          ansible_host: 10.2.1.7   # Docker w/ NetHack
-        bt2-stables:
-          # ansible_host: 192.168.0.42
-          ansible_host: 10.2.1.8   # MySQL
-
-    fedora_bt2:
-      hosts:
-        bt2-pigeontower:
-          # ansible_host: 192.168.0.43
-          ansible_host: 10.2.1.9   # Fedora
+    # ubuntu_bt2:
+    #   hosts:
+    #     bt2-market:
+    #       # ansible_host: 192.168.0.41
+    #       ansible_host: 10.2.1.7   # Docker w/ NetHack
+    #     bt2-stables:
+    #       # ansible_host: 192.168.0.42
+    #       ansible_host: 10.2.1.8   # MySQL
+    #     bt2-pigeontower:
+    #       # ansible_host: 192.168.0.43
+    #       ansible_host: 10.2.1.9   # Fedora
 
     # =========================================================================
     # Convenience groups
@@ -117,7 +114,6 @@ all:
       children:
         debian:
         ubuntu:
-        fedora:
         debian_bt2:
         ubuntu_bt2:
         fedora_bt2:
