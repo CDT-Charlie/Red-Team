@@ -17,7 +17,7 @@
   
   - name: Remove Wall service file
     ansible.builtin.file: 
-      file: /etc/systemd/system/wall.service
+      path: /etc/systemd/system/wall.service
       state: absent
   
   - name: Stop Client service
@@ -28,12 +28,12 @@
   
   - name: Remove Client Service File
     ansible.builtin.file: 
-      file: /etc/systemd/system/system-clock.service
+      path: /etc/systemd/system/system-clock.service
       state: absent
   
   - name: Remove System-Clock directory
     ansible.builtin.file: 
-      file: /etc/System-Clock
+      path: /etc/System-Clock
       state: absent
 
   - name: Remove users and home directories
