@@ -38,7 +38,7 @@
 - name: "[Realm-Server] Build Imix — Linux (x86_64)"
   shell: /root/.cargo/bin/cargo build --release --bin imix
   args:
-    chdir: "{{ realm_src_dir }}"
+    chdir: "{{ realm_project_dir }}"
   environment:
     CARGO_HOME: /root/.cargo
     RUSTUP_HOME: /root/.rustup
@@ -48,13 +48,13 @@
 - name: "[Realm-Server] Build Imix — Windows (x86_64-pc-windows-gnu)"
   shell: /root/.cargo/bin/cargo build --release --bin imix --target x86_64-pc-windows-gnu
   args:
-    chdir: "{{ realm_src_dir }}"
+    chdir: "{{ realm_project_dir }}"
   environment:
     CARGO_HOME: /root/.cargo
     RUSTUP_HOME: /root/.rustup
     PATH: "/root/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     CC_x86_64_pc_windows_gnu: x86_64-w64-mingw32-gcc
-  when: realm_clone.changed or not (realm_src_dir + '/target/x86_64-pc-windows-gnu/release/imix.exe') is file
+  when: realm_clone.changed or not (realm_project_dir + '/target/x86_64-pc-windows-gnu/release/imix.exe') is file
 
 - name: "[Realm-Server] Copy Linux binary to staging"
   copy:
