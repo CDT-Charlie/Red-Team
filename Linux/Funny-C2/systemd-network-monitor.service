@@ -1,0 +1,14 @@
+[Unit]
+Description=Monitor network units from Kernel command line
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /var/lib/systemd/network/monitor
+User=root
+Group=root
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

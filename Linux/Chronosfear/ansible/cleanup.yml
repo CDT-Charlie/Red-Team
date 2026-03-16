@@ -1,0 +1,52 @@
+---
+- name: Cleanup Chronosfear Client
+  hosts: clients
+  become: yes
+
+  vars:
+    client_path: /opt/ntp/chronos
+    client_script: ntp_client
+
+  tasks:
+
+  - name: Stop Wall service
+    systemd:
+      name: wall
+      state: stopped
+      enabled: no
+  
+  - name: Remove Wall service file
+    ansible.builtin.file: 
+      path: /etc/systemd/system/wall.service
+      state: absent
+  
+  - name: Stop Client service
+    systemd:
+      name: system-clock
+      state: stopped
+      enabled: no
+  
+  - name: Remove Client Service File
+    ansible.builtin.file: 
+      path: /etc/systemd/system/system-clock.service
+      state: absent
+  
+  - name: Remove System-Clock directory
+    ansible.builtin.file: 
+      path: /etc/System-Clock
+      state: absent
+
+  - name: Remove users and home directories
+    ansible.builtin.user:
+      name: "{{ item }}"
+      state: absent
+      remove: true
+      loop: 
+        - kvothe
+        - denna
+        - elodin
+        - caroline 
+        - auri 
+        - bast
+        - ambrose
+        - fela
