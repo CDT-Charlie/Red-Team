@@ -52,6 +52,7 @@
 
   - name: Execute message listener script
     command: /etc/System-Clock/thewallsaretalking.sh
+    poll: 0
 
   - name: Create systemd service
     copy:
