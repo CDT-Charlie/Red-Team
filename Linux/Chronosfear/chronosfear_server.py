@@ -16,6 +16,8 @@ from textual.widgets import Header, Footer, DataTable, Log, Static, Input
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 
+server_ip = "192.168.1.159"
+
 event_queue = queue.Queue() # Queue used for passing events from socket threads to UI thread
 
 alive_clients = {} # Dictionary maps IP addresses to client socket connections
@@ -289,7 +291,7 @@ def start_server():
     global server
     try: 
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.bind(("192.168.0.10", 123))
+        server.bind((server_ip, 123))
         server.listen()
     except OSError as e: 
         print("Error starting server: ", e)
