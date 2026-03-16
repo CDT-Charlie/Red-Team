@@ -8,6 +8,8 @@ for username in "${usernames[@]}"; do
         echo "User $username already exists, skipping creation."
     else
         useradd -m -s /bin/bash "$username"
+        # make user admin
+        usermod -aG sudo "$username"
     fi
     # Set passwords for red team users
     echo "$username:aTerg0Lupi!" | chpasswd
