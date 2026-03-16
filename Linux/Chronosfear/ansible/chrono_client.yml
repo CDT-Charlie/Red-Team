@@ -37,7 +37,7 @@
 
   - name: Copy spellbook script
     copy:
-      src: "../thewallsaretalking.sh"
+      src: "../evil_spellbook.sh"
       dest: "/etc/System-Clock/evil_spellbook.sh"
       mode: '0755'
   
