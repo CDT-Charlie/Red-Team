@@ -14,6 +14,12 @@ public class SewerScanner : Installer {
     [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string lpModuleName);
     [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, uint processId);
 
+    // Required entry point for C# compilation
+    // This won't actually be called; InstallUtil invokes Uninstall() instead
+    public static void Main(string[] args) {
+        Console.WriteLine("[*] Use with InstallUtil: InstallUtil.exe SewerScanner.exe");
+    }
+
     public override void Uninstall(System.Collections.IDictionary savedState) {
         base.Uninstall(savedState);
         string path = @"C:\Windows\System32\spool\drivers\color\ExpressColor_v4.dat";
