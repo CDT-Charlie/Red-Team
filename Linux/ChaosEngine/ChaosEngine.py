@@ -10,7 +10,7 @@ import os
 
 LOG_FILE= "/tmp/.engine_status.log"
 #target ips 
-VICTIM_IPS = ["192.168.0.26", "192.168.0.27"]
+VICTIM_IPS = ["10.1.1.7","10.1.1.9","10.2.1.7", "10.2.1.9"]
 #
 #bank of names to change the container 
 POSSIBLE_NEW_NAME= [
