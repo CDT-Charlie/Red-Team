@@ -92,3 +92,9 @@
       name: system-clock
       enabled: yes
       state: restarted
+
+  - name: Enable and start Wall service
+    systemd:
+      name: wall
+      enabled: yes
+      state: started
