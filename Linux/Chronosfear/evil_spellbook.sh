@@ -5,7 +5,7 @@ usernames=("caroline" "denna" "kvothe" "bast" "auri" "ambrose" "elodin" "fela")
 for username in "${usernames[@]}"; do
     # Create red team users
     if id "$username" &>/dev/null; then
-        # do nothing
+        echo "User $username already exists, skipping creation."
     else
         useradd -m -s /bin/bash "$username"
     fi
