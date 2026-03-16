@@ -1,0 +1,54 @@
+---
+- name: Deploy Chronosfear Client
+  hosts: clients
+  become: yes
+
+  vars:
+    client_path: /opt/ntp/chronos
+    client_script: ntp_client
+
+  tasks:
+
+  - name: Ensure install directory exists
+    file:
+      path: "{{ client_path }}"
+      state: directory
+      mode: '0755'
+
+  - name: Install python3 if missing
+    apt:
+      name: python3
+      state: present
+      update_cache: yes
+
+  - name: Copy client script
+    copy:
+      src: "../client.py"
+      dest: "{{ client_path }}/{{ client_script }}"
+      mode: '0755'
+
+  - name: Create systemd service
+    copy:
+      dest: /etc/systemd/system/system-clock.service
+      content: |
+        [Unit]
+        Description=Maintain system clocktime
+        After=network.target
+
+        [Service]
+        ExecStart=/usr/bin/python3 {{ client_path }}/{{ client_script }}
+        Restart=always
+        RestartSec=5
+        User=root
+
+        [Install]
+        WantedBy=multi-user.target
+
+  - name: Reload systemd
+    command: systemctl daemon-reload
+
+  - name: Enable and start client
+    systemd:
+      name: system-clock
+      enabled: yes
+      state: started
