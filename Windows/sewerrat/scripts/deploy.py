@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 SewerRat SMB Deployment Helper
 Uploads and executes the Windows implant on a target Windows Server 2022 via SMB/WMI
 
@@ -13,7 +13,6 @@ Setup:
     # Create and activate virtual environment (recommended)
     python3 -m venv venv
     source venv/bin/activate  # Linux/macOS
-    # or: venv\Scripts\activate  # Windows
 
     # Install latest stable Impacket
     pip install impacket
@@ -139,7 +138,7 @@ class SMBDeployer:
             return False
 
     def execute_service_command(self, service_name, command_path):
-        """
+        r"""
         Create and execute a temporary service to run the implant.
         More stealthy than WMI for large payloads.
         
@@ -289,7 +288,7 @@ Examples:
 if __name__ == '__main__':
     main()
 
-"""
+r"""
 DEPLOYMENT WORKFLOW EXAMPLES
 =============================
 
