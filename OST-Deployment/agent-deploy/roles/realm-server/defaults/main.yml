@@ -1,0 +1,4 @@
+realm_repo_url:  "https://github.com/spellshift/realm.git"
+realm_src_dir:   "/opt/realm"
+realm_bin_linux: "{{ realm_src_dir }}/target/release/imix"
+realm_bin_win:   "{{ realm_src_dir }}/target/x86_64-pc-windows-gnu/release/imix.exe"

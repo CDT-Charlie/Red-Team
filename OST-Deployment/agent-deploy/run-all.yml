@@ -1,0 +1,69 @@
+---
+# =============================================================================
+#  run-all.yml  —  THE ONE COMMAND TO RULE THEM ALL
+#
+#  Phase 1 — C2 Setup  (runs on attacker box defined in inventory c2 group):
+#    1. Build Realm (Imix) Linux + Windows binaries from source
+#    2. Install + start Caldera C2 server
+#    3. Install + start Sliver C2 server + generate Linux/Windows implants
+#    4. Start staging HTTP server (serves Realm + Sliver binaries)
+#
+#  Phase 2 — Agent Deployment  (runs on all victims):
+#    5. Deploy Realm + Sliver + Caldera agents to all Linux victims
+#    6. Deploy Realm + Sliver + Caldera agents to all Windows victims
+#
+#  Usage:
+#    cd agent-deploy
+#    ansible-playbook run-all.yml
+#
+#  Edit inventory.yml ONLY:
+#    - attacker_ip   → your attacker / C2 box IP
+#    - deploy_user / deploy_password  → shared victim credentials
+#    - ansible_host values per victim
+# =============================================================================
+
+# ── Phase 1a: Build Realm binaries ────────────────────────────────────────────
+- name: "Phase 1a | Build Realm (Imix) binaries"
+  hosts: c2
+  gather_facts: true
+  roles:
+    - realm-server
+
+# ── Phase 1b: Start Caldera server ────────────────────────────────────────────
+- name: "Phase 1b | Install and start Caldera C2"
+  hosts: c2
+  gather_facts: true
+  roles:
+    - caldera-server
+
+# ── Phase 1c: Start Sliver server + generate implants ─────────────────────────
+- name: "Phase 1c | Install Sliver C2 + generate implants"
+  hosts: c2
+  gather_facts: true
+  roles:
+    - sliver-server
+
+# ── Phase 1d: Start staging HTTP server ───────────────────────────────────────
+- name: "Phase 1d | Start staging HTTP file server"
+  hosts: c2
+  gather_facts: false
+  roles:
+    - staging-server
+
+# ── Phase 2a: Deploy all agents → Linux victims ───────────────────────────────
+- name: "Phase 2a | Deploy Realm + Sliver + Caldera → Linux"
+  hosts: linux
+  gather_facts: true
+  roles:
+    - realm
+    - sliver
+    - caldera
+
+# ── Phase 2b: Deploy all agents → Windows victims ─────────────────────────────
+- name: "Phase 2b | Deploy Realm + Sliver + Caldera → Windows"
+  hosts: windows
+  gather_facts: true
+  roles:
+    - realm
+    - sliver
+    - caldera
