@@ -15,3 +15,5 @@ The server uses Textual to create a simple UI within the terminal, and maintain 
 2. Populate `inventory.ini` file with clients and credentials to login over SSH
 3. Run ansible playbook with `ansible-playbook chrono_client.yml -i inventory.ini`
 4. When the playbook finishes the server should begin to receive connections from clients. 
+5. Commands will by default be sent to the client highlighted in the client table. Arrowkeys can be used to switch between clients. 
+6. To broadcast a command to all clients, simply prepend the command with 'broadcast'.
