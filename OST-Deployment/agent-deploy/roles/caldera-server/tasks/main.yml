@@ -1,0 +1,82 @@
+---
+# Clones Caldera, installs Python deps, and runs it as a systemd service.
+
+- name: "[Caldera-Server] Install dependencies"
+  package:
+    name:
+      - git
+      - python3
+      - python3-pip
+      - python3-venv
+    state: present
+
+- name: "[Caldera-Server] Clone Caldera repository"
+  git:
+    repo:      "{{ caldera_repo_url }}"
+    dest:      "{{ caldera_src_dir }}"
+    version:   master
+    recursive: true
+    force:     false
+
+- name: "[Caldera-Server] Install Python requirements"
+  pip:
+    requirements: "{{ caldera_src_dir }}/requirements.txt"
+    virtualenv:   "{{ caldera_src_dir }}/venv"
+    virtualenv_command: python3 -m venv
+
+- name: "[Caldera-Server] Write local configuration"
+  copy:
+    dest: "{{ caldera_src_dir }}/conf/local.yml"
+    mode: "0600"
+    content: |
+      host: 0.0.0.0
+      port: {{ caldera_c2_port }}
+      plugins:
+        - sandcat
+        - stockpile
+        - compass
+        - response
+      auth.login.handler.module: default
+      users:
+        red:
+          {{ caldera_admin_user }}: {{ caldera_admin_pass }}
+        blue:
+          blue: adminpassword
+
+- name: "[Caldera-Server] Create Caldera systemd service"
+  copy:
+    dest: /etc/systemd/system/caldera.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=MITRE Caldera C2 Server
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      WorkingDirectory={{ caldera_src_dir }}
+      ExecStart={{ caldera_src_dir }}/venv/bin/python3 server.py --insecure
+      Restart=on-failure
+      RestartSec=5
+      StandardOutput=journal
+      StandardError=journal
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: "[Caldera-Server] Enable and start Caldera"
+  systemd:
+    name:         caldera
+    enabled:      true
+    state:        started
+    daemon_reload: true
+
+- name: "[Caldera-Server] Wait for Caldera HTTP port to be ready"
+  wait_for:
+    host:    127.0.0.1
+    port:    "{{ caldera_c2_port }}"
+    timeout: 120
+
+- name: "[Caldera-Server] Confirm Caldera is up"
+  debug:
+    msg: "Caldera server running at http://{{ attacker_ip }}:{{ caldera_c2_port }}"

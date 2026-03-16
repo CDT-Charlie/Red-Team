@@ -1,41 +1,24 @@
 ---
 # =============================================================================
-#  site.yml  —  Deploy ALL three agents (Realm + Sliver + Caldera) to all targets
+#  site.yml  —  Deploy ALL three agents to ALL victims
+#  Assumes C2 servers + staging HTTP server are already running.
+#  To bring up C2 first AND deploy, use run-all.yml instead.
+#
 #  Usage:  ansible-playbook site.yml
 # =============================================================================
 
-- name: Deploy Realm (Imix) agent — Linux
+- name: Deploy Realm + Sliver + Caldera — Linux victims
   hosts: linux
   gather_facts: true
   roles:
     - realm
-
-- name: Deploy Realm (Imix) agent — Windows
-  hosts: windows
-  gather_facts: true
-  roles:
-    - realm
-
-- name: Deploy Sliver implant — Linux
-  hosts: linux
-  gather_facts: true
-  roles:
     - sliver
-
-- name: Deploy Sliver implant — Windows
-  hosts: windows
-  gather_facts: true
-  roles:
-    - sliver
-
-- name: Deploy Caldera Sandcat agent — Linux
-  hosts: linux
-  gather_facts: true
-  roles:
     - caldera
 
-- name: Deploy Caldera Sandcat agent — Windows
+- name: Deploy Realm + Sliver + Caldera — Windows victims
   hosts: windows
   gather_facts: true
   roles:
+    - realm
+    - sliver
     - caldera

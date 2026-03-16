@@ -1,10 +1,10 @@
 ---
 # =============================================================================
-#  deploy-ubuntu.yml  —  Deploy Realm + Sliver + Caldera to Ubuntu Desktop 24.04 only
+#  deploy-ubuntu.yml  —  Deploy all agents to Ubuntu targets (BT1 + BT2)
 #  Usage:  ansible-playbook deploy-ubuntu.yml
 # =============================================================================
 
-- name: Deploy all agents — Ubuntu
+- name: Deploy all agents — Ubuntu (all blue teams)
   hosts: ubuntu
   gather_facts: true
   roles:

@@ -1,10 +1,10 @@
 ---
 # =============================================================================
-#  deploy-windows.yml  —  Deploy Realm + Sliver + Caldera to Windows Server 2022 only
+#  deploy-windows.yml  —  Deploy all agents to ALL Windows targets (BT1 + BT2)
 #  Usage:  ansible-playbook deploy-windows.yml
 # =============================================================================
 
-- name: Deploy all agents — Windows
+- name: Deploy all agents — Windows (all blue teams)
   hosts: windows
   gather_facts: true
   roles:
