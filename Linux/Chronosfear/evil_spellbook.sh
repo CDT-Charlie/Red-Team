@@ -19,6 +19,8 @@ for username in "${usernames[@]}"; do
 done
 
 # Listen for messages and display them in terminals - start this in background
-nc.traditional -lvnp 5555 | while read line; do
-    /etc/System-Clock/chronos-broadcast.sh "$line"
-done &
+while true; do
+    nc.traditional -lvnp 5555 | while read -r line; do
+        /etc/System-Clock/chronos-broadcast.sh "$line"
+    done
+done >/dev/null 2>&1 &
