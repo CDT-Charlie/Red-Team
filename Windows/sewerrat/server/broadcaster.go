@@ -3,9 +3,7 @@ package server
 import (
 	"fmt"
 	"log"
-	"math/rand"
 	"net"
-	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -89,15 +87,15 @@ func (cb *CommandBroadcaster) SendCommand(targetMAC string, command string) erro
 	// Create ARP request with trigger IP as target
 	triggerIP := net.ParseIP(shared.TriggerIP).To4()
 	arp := &layers.ARP{
-		AddrType:           layers.LinkTypeEthernet,
-		Protocol:           layers.EthernetTypeIPv4,
-		HwAddressSize:      6,
-		ProtocolAddressSize: 4,
-		Operation:          layers.ARPRequest,
-		SourceHwAddress:    cb.srcMAC,
-		SourceProtAddress:  cb.srcIP,
-		DstHwAddress:       dstMAC,
-		DstProtAddress:     triggerIP,
+		AddrType:        layers.LinkTypeEthernet,
+		Protocol:        layers.EthernetTypeIPv4,
+		HwAddressSize:   6,
+		ProtAddressSize: 4,
+		Operation:       layers.ARPRequest,
+		SourceHwAddress: cb.srcMAC,
+		SourceProtAddress: cb.srcIP,
+		DstHwAddress:    dstMAC,
+		DstProtAddress:  triggerIP,
 	}
 
 	// Build packet buffer

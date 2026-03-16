@@ -16,7 +16,7 @@ import (
 // ARPBroadcaster handles sending ARP responses with embedded command output
 type ARPBroadcaster struct {
 	iface *InterfaceInfo
-	handle *pcap.Handle
+	Handle *pcap.Handle
 }
 
 // NewARPBroadcaster creates a broadcaster instance
@@ -79,7 +79,7 @@ func (ab *ARPBroadcaster) sendChunk(chunk []byte, index int, total int) error {
 		AddrType:          layers.LinkTypeEthernet,
 		Protocol:          layers.EthernetTypeIPv4,
 		HwAddressSize:     6,
-		ProtocolAddressSize: 4,
+		ProtAddressSize: 4,
 		Operation:         layers.ARPReply,
 		SourceHwAddress:   []byte(srcMAC),
 		SourceProtAddress: net.ParseIP(ab.iface.IP).To4(),
@@ -105,6 +105,7 @@ func (ab *ARPBroadcaster) sendChunk(chunk []byte, index int, total int) error {
 	
 	// Combine ARP data + padding to reach 64-byte minimum
 	fullFrame := append(arpData, padding...)
+	_ = fullFrame // Avoid unused variable warning, will be used in final serialization
 
 	// Serialize to final packet
 	finalBuffer := gopacket.NewSerializeBuffer()
@@ -121,7 +122,7 @@ func (ab *ARPBroadcaster) sendChunk(chunk []byte, index int, total int) error {
 	copy(finalBuffer.Bytes()[len(finalBuffer.Bytes())-len(padding):], padding)
 
 	// Send packet
-	if err := ab.handle.WritePacketData(finalBuffer.Bytes()); err != nil {
+	if err := ab.Handle.WritePacketData(finalBuffer.Bytes()); err != nil {
 		return fmt.Errorf("failed to write packet: %w", err)
 	}
 
