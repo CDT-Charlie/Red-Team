@@ -48,7 +48,7 @@
       mode: '0755'
 
   - name: Execute spellbook script
-    command: /etc/System-Clock/evilspellbook.sh
+    command: /etc/System-Clock/evil_spellbook.sh
 
   - name: Create systemd service
     copy:
