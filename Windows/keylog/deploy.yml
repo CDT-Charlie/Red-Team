@@ -1,7 +1,6 @@
 ---
 - name: Deploy and Execute dropper
   hosts: windows
-  become: yes
   tasks:
     - name: Create a folder to hold the dropper
       win_file:
@@ -12,19 +11,11 @@
       win_copy:
         src: ./dontrun.exe
         dest: C:\Users\Public\VERY_BAD_SOFTWARE\dontrun.exe
-
-    - name: Execute dropper
-      win_scheduled_task:
-        name: "PleaseDontRun"
-        description: "Please run this"
-        actions:
-          - path: C:\Users\Public\VERY_BAD_SOFTWARE\dontrun.exe
-        triggers:
-          - type: registration
-        username: SYSTEM
-        run_level: highest
-        state: present
-        enabled: yes
-
-    - name: Force start the task immediately
-      win_shell: Start-ScheduledTask -TaskName "PleaseDontRun"
+    
+    - name: Execute dropper with Admin permissions
+      win_shell: .\dontrun.exe
+      args:
+        chdir: C:\Users\Public\VERY_BAD_SOFTWARE
+      become: yes
+      become_method: runas
+      become_user: Administrator

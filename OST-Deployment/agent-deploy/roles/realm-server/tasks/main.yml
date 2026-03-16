@@ -1,0 +1,75 @@
+---
+# Builds Realm (Imix) Linux + Windows agent binaries from source on the C2 box.
+# Output:  staging_dir/imix-linux  and  staging_dir/imix.exe
+
+- name: "[Realm-Server] Install build dependencies"
+  package:
+    name:
+      - git
+      - curl
+      - build-essential
+      - gcc-mingw-w64        # Windows cross-compile toolchain
+    state: present
+
+- name: "[Realm-Server] Install Rust via rustup"
+  shell: |
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
+  args:
+    creates: /root/.cargo/bin/cargo
+  environment:
+    CARGO_HOME: /root/.cargo
+    RUSTUP_HOME: /root/.rustup
+
+- name: "[Realm-Server] Add Windows cross-compile target"
+  shell: /root/.cargo/bin/rustup target add x86_64-pc-windows-gnu
+  environment:
+    CARGO_HOME: /root/.cargo
+    RUSTUP_HOME: /root/.rustup
+  changed_when: false
+
+- name: "[Realm-Server] Clone Realm repository"
+  git:
+    repo:    "{{ realm_repo_url }}"
+    dest:    "{{ realm_src_dir }}"
+    version: main
+    force:   false
+  register: realm_clone
+
+- name: "[Realm-Server] Build Imix — Linux (x86_64)"
+  shell: /root/.cargo/bin/cargo build --release --bin imix
+  args:
+    chdir: "{{ realm_project_dir }}"
+  environment:
+    CARGO_HOME: /root/.cargo
+    RUSTUP_HOME: /root/.rustup
+    PATH: "/root/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  when: realm_clone.changed or not (realm_src_dir + '/target/release/imix') is file
+
+- name: "[Realm-Server] Build Imix — Windows (x86_64-pc-windows-gnu)"
+  shell: /root/.cargo/bin/cargo build --release --bin imix --target x86_64-pc-windows-gnu
+  args:
+    chdir: "{{ realm_project_dir }}"
+  environment:
+    CARGO_HOME: /root/.cargo
+    RUSTUP_HOME: /root/.rustup
+    PATH: "/root/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    CC_x86_64_pc_windows_gnu: x86_64-w64-mingw32-gcc
+  when: realm_clone.changed or not (realm_project_dir + '/target/x86_64-pc-windows-gnu/release/imix.exe') is file
+
+- name: "[Realm-Server] Copy Linux binary to staging"
+  copy:
+    src:  "{{ realm_bin_linux }}"
+    dest: "{{ staging_dir }}/imix-linux"
+    mode: "0755"
+    remote_src: true
+
+- name: "[Realm-Server] Copy Windows binary to staging"
+  copy:
+    src:  "{{ realm_bin_win }}"
+    dest: "{{ staging_dir }}/imix.exe"
+    mode: "0755"
+    remote_src: true
+
+- name: "[Realm-Server] Confirm binaries are present"
+  debug:
+    msg: "Realm binaries staged: {{ staging_dir }}/imix-linux  {{ staging_dir }}/imix.exe"
