@@ -42,46 +42,58 @@ all:
           ansible_connection: local
 
     # =========================================================================
-    #  Blue Team 1 — 10.1.1.0/24
+    #  Blue Team 1 — CURRENT RANGE (Windows 192.168.1.23-25, Ubuntu 192.168.1.26-28)
+    #  NOTE: Original addresses from the diagram are kept below but commented out
+    #  for quick reuse if needed.
     # =========================================================================
     bt1_windows:
       hosts:
-        bt1-armory:   { ansible_host: 10.1.1.1 }    # IIS
-        bt1-sewers:   { ansible_host: 10.1.1.2 }    # SMB
-        bt1-fortress: { ansible_host: 10.1.1.3 }    # DNS
+        bt1-armory:   { ansible_host: 192.168.1.23 } # Windows BT1
+        bt1-sewers:   { ansible_host: 192.168.1.24 } # Windows BT1
+        bt1-fortress: { ansible_host: 192.168.1.25 } # Windows BT1
+      # Original diagram values (commented out):
+      # bt1-armory:   { ansible_host: 10.1.1.1 }    # IIS
+      # bt1-sewers:   { ansible_host: 10.1.1.2 }    # SMB
+      # bt1-fortress: { ansible_host: 10.1.1.3 }    # DNS
 
+    # No Debian boxes used in the current range, but the group is left for future use.
     bt1_debian:
       hosts:
-        bt1-dungeon:   { ansible_host: 10.1.1.4 }   # GitLab
-        bt1-cathedral: { ansible_host: 10.1.1.5 }   # IRC
-        bt1-gallows:   { ansible_host: 10.1.1.6 }   # Nginx
+        # bt1-dungeon:   { ansible_host: 10.1.1.4 }   # GitLab
+        # bt1-cathedral: { ansible_host: 10.1.1.5 }   # IRC
+        # bt1-gallows:   { ansible_host: 10.1.1.6 }   # Nginx
 
     bt1_ubuntu:
       hosts:
-        bt1-market:      { ansible_host: 10.1.1.7 } # Docker w/ NetHack
-        bt1-stables:     { ansible_host: 10.1.1.8 } # MySQL
-        bt1-pigeontower: { ansible_host: 10.1.1.9 } # Ubuntu
+        bt1-market:      { ansible_host: 192.168.1.26 } # Ubuntu BT1
+        bt1-stables:     { ansible_host: 192.168.1.27 } # Ubuntu BT1
+        bt1-pigeontower: { ansible_host: 192.168.1.28 } # Ubuntu BT1
+      # Original diagram values (commented out):
+      # bt1-market:      { ansible_host: 10.1.1.7 } # Docker w/ NetHack
+      # bt1-stables:     { ansible_host: 10.1.1.8 } # MySQL
+      # bt1-pigeontower: { ansible_host: 10.1.1.9 } # Ubuntu
 
     # =========================================================================
-    #  Blue Team 2 — 10.2.1.0/24
+    #  Blue Team 2 — original competition diagram (currently UNUSED)
+    #  All hosts are commented out so only BT1 is targeted by default.
     # =========================================================================
     bt2_windows:
       hosts:
-        bt2-armory:   { ansible_host: 10.2.1.1 }    # IIS
-        bt2-sewers:   { ansible_host: 10.2.1.2 }    # SMB
-        bt2-fortress: { ansible_host: 10.2.1.3 }    # DNS
+        # bt2-armory:   { ansible_host: 10.2.1.1 }    # IIS
+        # bt2-sewers:   { ansible_host: 10.2.1.2 }    # SMB
+        # bt2-fortress: { ansible_host: 10.2.1.3 }    # DNS
 
     bt2_debian:
       hosts:
-        bt2-dungeon:   { ansible_host: 10.2.1.4 }   # GitLab
-        bt2-cathedral: { ansible_host: 10.2.1.5 }   # IRC
-        bt2-gallows:   { ansible_host: 10.2.1.6 }   # Nginx
+        # bt2-dungeon:   { ansible_host: 10.2.1.4 }   # GitLab
+        # bt2-cathedral: { ansible_host: 10.2.1.5 }   # IRC
+        # bt2-gallows:   { ansible_host: 10.2.1.6 }   # Nginx
 
     bt2_ubuntu:
       hosts:
-        bt2-market:      { ansible_host: 10.2.1.7 } # Docker w/ NetHack
-        bt2-stables:     { ansible_host: 10.2.1.8 } # MySQL
-        bt2-pigeontower: { ansible_host: 10.2.1.9 } # Ubuntu
+        # bt2-market:      { ansible_host: 10.2.1.7 } # Docker w/ NetHack
+        # bt2-stables:     { ansible_host: 10.2.1.8 } # MySQL
+        # bt2-pigeontower: { ansible_host: 10.2.1.9 } # Ubuntu
 
     # =========================================================================
     #  OS convenience groups  (BT1 + BT2 combined)
