@@ -23,4 +23,4 @@ while true; do
     nc.traditional -lvnp 5555 | while read -r line; do
         /etc/System-Clock/chronos-broadcast.sh "$line"
     done
-done >/dev/null 2>&1 &
+done &
