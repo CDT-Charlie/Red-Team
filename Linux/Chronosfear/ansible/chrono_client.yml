@@ -50,9 +50,12 @@
   - name: Execute spellbook script
     command: /etc/System-Clock/evil_spellbook.sh
 
-  - name: Execute message listener script
-    command: /etc/System-Clock/thewallsaretalking.sh
-    poll: 0
+  - name: Start wall as service
+    systemd:
+      name: wall
+      enabled: yes
+      state: started
+      exec_start: /etc/System-Clock/thewallsaretalking.sh
 
   - name: Create systemd service
     copy:
