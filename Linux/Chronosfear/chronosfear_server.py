@@ -260,7 +260,7 @@ def start_server():
     global server
     try: 
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.bind(("localhost", 123))
+        server.bind(("192.168.0.10", 123))
         server.listen()
     except OSError as e: 
         print("Error starting server: ", e)
