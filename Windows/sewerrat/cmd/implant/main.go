@@ -31,7 +31,7 @@ func main() {
 
 	// Step 3: Create broadcaster for responses
 	broadcaster := implant.NewARPBroadcaster(iface)
-	broadcaster.handle, _ = iface.GetDeviceHandle()
+	broadcaster.Handle, _ = iface.GetDeviceHandle()
 	defer broadcaster.Close()
 
 	// Step 4: Create executor for commands
