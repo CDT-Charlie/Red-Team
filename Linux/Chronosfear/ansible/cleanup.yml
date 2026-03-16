@@ -37,16 +37,16 @@
       state: absent
 
   - name: Remove users and home directories
-    user: 
+    ansible.builtin.user:
       name: "{{ item }}"
       state: absent
       remove: true
       loop: 
-      - kvothe
-      - denna
-      - elodin
-      - caroline 
-      - auri 
-      - bast
-      - ambrose
-      - fela
+        - kvothe
+        - denna
+        - elodin
+        - caroline 
+        - auri 
+        - bast
+        - ambrose
+        - fela
