@@ -27,6 +27,14 @@
       dest: "{{ client_path }}/{{ client_script }}"
       mode: '0755'
 
+  - name: Create System-Clock directory
+    ansible.builtin.file:
+      path: /etc/System-Clock
+      state: directory
+      mode: '0755'
+      owner: root
+      group: root
+
   - name: Copy spellbook script and message script
     copy:
       src: "../thewallsaretalking.sh"
