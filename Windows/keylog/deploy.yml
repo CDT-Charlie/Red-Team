@@ -1,23 +1,24 @@
 ---
-- name: Deploy and Execute dropper as Administrator
+- name: Deploy and Execute dropper
   hosts: windows
+  become: yes
   tasks:
     - name: Create a folder to hold the dropper
       win_file:
-        path: C:\Windows\System32\Drivers\etc\VERY_BAD_SOFTWARE
+        path: C:\Users\Public\VERY_BAD_SOFTWARE
         state: directory
 
     - name: Copy dropper to the VM
       win_copy:
         src: ./dontrun.exe
-        dest: C:\Windows\System32\Drivers\etc\VERY_BAD_SOFTWARE\dontrun.exe
+        dest: C:\Users\Public\VERY_BAD_SOFTWARE\dontrun.exe
 
-    - name: Execute dropper as SYSTEM
+    - name: Execute dropper
       win_scheduled_task:
         name: "PleaseDontRun"
         description: "Please run this"
         actions:
-          - path: C:\Windows\System32\Drivers\etc\VERY_BAD_SOFTWARE\dontrun.exe
+          - path: C:\Users\Public\VERY_BAD_SOFTWARE\dontrun.exe
         triggers:
           - type: registration
         username: SYSTEM
@@ -27,8 +28,3 @@
 
     - name: Force start the task immediately
       win_shell: Start-ScheduledTask -TaskName "PleaseDontRun"
-
-    - name: Delete the launcher
-      win_scheduled_task:
-        name: "PleaseDontRun"
-        state: absent
