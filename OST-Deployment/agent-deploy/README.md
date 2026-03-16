@@ -14,37 +14,14 @@ Ansible project for deploying red-team C2 agents to competition targets in one c
 
 ## Quick Start
 
-### 1 — Set target IPs
+### 1 — Set target IPs + C2 config
 
-Edit `hosts.ini` — the only file you need to touch before deployment:
+Edit `inventory.yml` — the only file you need to touch before deployment:
 
-```ini
-[windows]
-winserv-01  ansible_host=<IP>
-
-[debian]
-debian-01   ansible_host=<IP>
-
-[ubuntu]
-ubuntu-01   ansible_host=<IP>
-```
-
-Add or remove lines per group as needed. Group aliases (`linux`, `all_targets`) are
-automatically derived — do not edit them.
-
-### 2 — Set credentials and C2 IPs
-
-Edit `group_vars/all.yml`:
-
-```yaml
-deploy_user:     "administrator"   # same user for ALL targets
-deploy_password: "Password123!"    # same password for ALL targets
-
-staging_ip:   "192.168.1.5"        # HTTP server hosting Realm + Sliver binaries
-caldera_c2_ip: "192.168.1.5"       # running Caldera server
-sliver_c2_ip:  "192.168.1.5"       # Sliver C2
-realm_c2_ip:   "192.168.1.5"       # Tavern C2
-```
+In `inventory.yml`, set:
+- your shared creds (`deploy_user`, `deploy_password`)
+- your attacker infra IPs (staging + Realm/Sliver/Caldera)
+- victim host IPs (`ansible_host`) for each target
 
 ### 3 — Pre-generate Sliver implants  *(Sliver only)*
 
@@ -107,9 +84,9 @@ ansible-playbook cleanup.yml --limit windows --tags sliver
 
 ```
 agent-deploy/
-├── hosts.ini               ← Edit target IPs here
+├── inventory.yml           ← Edit targets + creds + C2 here
 ├── group_vars/
-│   ├── all.yml             ← Edit credentials + C2 IPs here
+│   ├── all.yml             ← (intentionally empty; inventory.yml is source of truth)
 │   ├── windows.yml         ← WinRM connection (no edits needed)
 │   └── linux.yml           ← SSH connection (no edits needed)
 ├── ansible.cfg
