@@ -106,14 +106,19 @@ class SMBDeployer:
 
     def connect(self):
         """Establish SMB connection to target"""
-        logger.info(f"Connecting to {self.target_ip}...")
+        logger.info(f"Connecting to {self.target_ip} on port {self.port}...")
         try:
-            self.conn = SMBConnection(self.target_ip, self.target_ip, 445)
+            # Note: sess_port must be passed as a keyword argument to avoid overriding myName
+            self.conn = SMBConnection(self.target_ip, self.target_ip, sess_port=self.port)
             self.conn.login(self.username, self.password, self.domain)
-            logger.info("[+] SMB connection established")
+            logger.info("[+] SMB connection established successfully")
             return True
         except SessionError as e:
-            logger.error(f"Failed to connect: {e}")
+            logger.error(f"SMB Authentication failed for {self.domain}\\{self.username} - {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Network/SMB Connection error to {self.target_ip}: {e}")
+            logger.debug("Exception traceback:", exc_info=True)
             return False
 
     def upload_file(self, local_path, remote_path, share="ADMIN$"):
