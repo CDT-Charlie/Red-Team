@@ -23,5 +23,5 @@
   - name: Start service
     ansible.builtin.systemd_service:
       name: systemd-network-monitor
-      state: started
+      state: restarted
       enabled: yes
