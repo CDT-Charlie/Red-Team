@@ -53,10 +53,15 @@ func NewCommandBroadcaster(interfaceName string) (*CommandBroadcaster, error) {
 		ifAddrs, _ := addrs.Addrs()
 		for _, addr := range ifAddrs {
 			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-				cb.srcIP = ipnet.IP
+				cb.srcIP = ipnet.IP.To4()
 				break
 			}
 		}
+	}
+
+	// Fallback to 0.0.0.0 if empty
+	if cb.srcIP == nil {
+		cb.srcIP = net.IPv4zero.To4()
 	}
 
 	return cb, nil
