@@ -11,7 +11,7 @@ import subprocess
 import time
 import random
 
-server_address = "192.168.0.10"
+server_address = "192.168.1.159"
 server_port = 123
 client = None
 
