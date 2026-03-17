@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# The Walls are Talking
+# Author: Caroline Richards
+
 # Listen for messages and display them in terminals - start this in background
 while true; do
     nc.traditional -lvnp 5555 | while read -r line; do
@@ -10,3 +13,4 @@ while true; do
 done
     done
 done &
+
