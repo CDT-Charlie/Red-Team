@@ -1,0 +1,11 @@
+[Unit]
+Description=Firewall unblock (red team) - remove blocking rules once
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/path/to/firewall-unblock/firewall-unblock.sh once
+# Adjust path above to actual install location (e.g. /opt/firewall-unblock)
+
+[Install]
+WantedBy=multi-user.target
