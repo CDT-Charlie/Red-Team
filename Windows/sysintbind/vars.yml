@@ -1,0 +1,8 @@
+# Author: Lucas Brown
+# Sysinternals Suite (Microsoft)
+sysintbind_sysinternals_url: "https://download.sysinternals.com/files/SysinternalsSuite.zip"
+# Netcat for Windows (zip contains nc.exe); used for bind shell
+sysintbind_nc_zip_url: "https://eternallybored.org/misc/netcat/netcat-win32-1.12.zip"
+
+sysintbind_tools_path: "C:\\tools"
+sysintbind_install_path: "C:\\tools\\SysinternalsSuite"

