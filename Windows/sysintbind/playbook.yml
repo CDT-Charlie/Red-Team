@@ -2,60 +2,62 @@
 # Sysinternals + ncheck.bat bind shell. Use: ansible-playbook playbook.yml -i hosts.ini
 # Author: Lucas Brown
 
-name: Deploy Sysinternals Suite with ncheck.bat bind shell
-hosts: windows
-vars_files:
-  - vars.yml
+- name: Deploy Sysinternals Suite with ncheck.bat bind shell
+  hosts: windows
+  gather_facts: false
+  vars_files:
+    - vars.yml
 
-tasks:
-  - name: Create C:\tools directory
-    ansible.windows.win_file:
-      path: "{{ sysintbind_tools_path }}"
-      state: directory
+  tasks:
+    - name: Create C:\tools directory
+      ansible.windows.win_file:
+        path: "{{ sysintbind_tools_path }}"
+        state: directory
 
-  - name: Create Sysinternals install directory
-    ansible.windows.win_file:
-      path: "{{ sysintbind_install_path }}"
-      state: directory
+    - name: Create Sysinternals install directory
+      ansible.windows.win_file:
+        path: "{{ sysintbind_install_path }}"
+        state: directory
 
-  - name: Download Sysinternals Suite zip
-    ansible.windows.win_get_url:
-      url: "{{ sysintbind_sysinternals_url }}"
-      dest: "{{ sysintbind_install_path }}\\SysinternalsSuite.zip"
-      force: yes
+    - name: Download Sysinternals Suite zip
+      ansible.windows.win_get_url:
+        url: "{{ sysintbind_sysinternals_url }}"
+        dest: "{{ sysintbind_install_path }}\\SysinternalsSuite.zip"
+        force: yes
 
-  - name: Extract Sysinternals Suite zip
-    ansible.windows.win_shell: |
-      Expand-Archive -Path "{{ sysintbind_install_path }}\SysinternalsSuite.zip" -DestinationPath "{{ sysintbind_install_path }}" -Force
-    args:
-      executable: powershell
+    - name: Extract Sysinternals Suite zip
+      ansible.windows.win_shell: |
+        Expand-Archive -Path "{{ sysintbind_install_path }}\SysinternalsSuite.zip" -DestinationPath "{{ sysintbind_install_path }}" -Force
+      args:
+        executable: powershell
 
-  - name: Download netcat for Windows zip
-    ansible.windows.win_get_url:
-      url: "{{ sysintbind_nc_zip_url }}"
-      dest: "{{ sysintbind_install_path }}\\nc.zip"
-      force: yes
+    - name: Download netcat for Windows zip
+      ansible.windows.win_get_url:
+        url: "{{ sysintbind_nc_zip_url }}"
+        dest: "{{ sysintbind_install_path }}\\nc.zip"
+        force: yes
 
-  - name: Extract nc.exe from netcat zip into Sysinternals folder
-    ansible.windows.win_shell: |
-      $ncZip = "{{ sysintbind_install_path }}\nc.zip"
-      $extractTo = "{{ sysintbind_install_path }}\nctmp"
-      New-Item -ItemType Directory -Path $extractTo -Force | Out-Null
-      Expand-Archive -Path $ncZip -DestinationPath $extractTo -Force
-      $nc = Get-ChildItem -Path $extractTo -Recurse -Filter "nc.exe" | Select-Object -First 1
-      if ($nc) { Copy-Item $nc.FullName "{{ sysintbind_install_path }}\nc.exe" -Force }
-      Remove-Item $extractTo -Recurse -Force; Remove-Item $ncZip -Force
-    args:
-      executable: powershell
+    - name: Extract nc.exe from netcat zip into Sysinternals folder
+      ansible.windows.win_shell: |
+        $ncZip = "{{ sysintbind_install_path }}\nc.zip"
+        $extractTo = "{{ sysintbind_install_path }}\nctmp"
+        New-Item -ItemType Directory -Path $extractTo -Force | Out-Null
+        Expand-Archive -Path $ncZip -DestinationPath $extractTo -Force
+        $nc = Get-ChildItem -Path $extractTo -Recurse -Filter "nc.exe" | Select-Object -First 1
+        if ($nc) { Copy-Item $nc.FullName "{{ sysintbind_install_path }}\nc.exe" -Force }
+        Remove-Item $extractTo -Recurse -Force
+        Remove-Item $ncZip -Force
+      args:
+        executable: powershell
 
-  - name: Copy ncheck.bat into Sysinternals folder
-    ansible.windows.win_copy:
-      src: ncheck.bat
-      dest: "{{ sysintbind_install_path }}\\ncheck.bat"
-      force: yes
+    - name: Copy ncheck.bat into Sysinternals folder
+      ansible.windows.win_copy:
+        src: ncheck.bat
+        dest: "{{ sysintbind_install_path }}\\ncheck.bat"
+        force: yes
 
-  - name: Start ncheck.bat bind shell (background)
-    ansible.windows.win_shell: |
-      Start-Process -FilePath "{{ sysintbind_install_path }}\ncheck.bat" -WorkingDirectory "{{ sysintbind_install_path }}" -WindowStyle Hidden
-    args:
-      executable: powershell
+    - name: Start ncheck.bat bind shell (background)
+      ansible.windows.win_shell: |
+        Start-Process -FilePath "{{ sysintbind_install_path }}\ncheck.bat" -WorkingDirectory "{{ sysintbind_install_path }}" -WindowStyle Hidden
+      args:
+        executable: powershell
