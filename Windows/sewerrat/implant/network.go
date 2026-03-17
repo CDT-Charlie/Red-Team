@@ -25,6 +25,12 @@ func FindActiveInterface() (*InterfaceInfo, error) {
 		return nil, fmt.Errorf("failed to list interfaces: %w", err)
 	}
 
+	// Get all pcap devices to map Windows names properly (\Device\NPF_...)
+	devices, err := pcap.FindAllDevs()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pcap devices: %w", err)
+	}
+
 	for _, iface := range interfaces {
 		// Skip loopback and non-active interfaces
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
@@ -54,8 +60,19 @@ func FindActiveInterface() (*InterfaceInfo, error) {
 			continue
 		}
 
+		// Now find the matching device in pcap to get the \Device\NPF_ name
+		pcapName := iface.Name
+		for _, dev := range devices {
+			for _, devAddr := range dev.Addresses {
+				if devAddr.IP.String() == ipAddr {
+					pcapName = dev.Name
+					break
+				}
+			}
+		}
+
 		return &InterfaceInfo{
-			Name:         iface.Name,
+			Name:         pcapName,
 			HardwareAddr: iface.HardwareAddr.String(),
 			IP:           ipAddr,
 		}, nil
