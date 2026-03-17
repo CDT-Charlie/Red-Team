@@ -1,4 +1,4 @@
-# Key Event Logger – README
+# Magic Logger – README
 
 ## Author
 
