@@ -143,8 +143,11 @@ class Chronosfear(App):
             event = event_queue.get() # get the next event from the queue
             if event["type"] == "connect":
                 # a new client has connected, so add it to the table and log the connection
-                table.add_row(event["ip"], key=event["ip"])
-                log.write_line(f"{event['ip']} connected")
+                try: 
+                    table.add_row(event["ip"], key=event["ip"])
+                    log.write_line(f"{event['ip']} connected")
+                except: 
+                    log.writeline(f"Client {event['ip']} already in table.")
             elif event["type"] == "disconnect":
                 # a client has disconnected, so remove it from the table and log the disconnection
                 log.write_line(f"{event['ip']} disconnected")
