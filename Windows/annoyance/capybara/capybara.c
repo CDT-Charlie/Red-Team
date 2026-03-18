@@ -285,8 +285,8 @@ static int ensure_all_downloaded(void) {
     for (i = 0; i < 2; ++i) {
         printf("\n=== Download pipeline for GIF %d ===\n", i + 1);
         if (!download_gif_from_tenor_page(page_urls[i], html_paths[i], gif_paths[i])) {
-            printf("[!] GIF %d failed.\n", i + 1);
-            return 0;
+            printf("[!] GIF %d failed (Tenor pipeline).\n", i + 1);
+            /* Do not fail hard; we will fall back to browser pop-ups. */
         }
     }
     return 1;
@@ -326,26 +326,64 @@ static void open_current(void) {
     current_gif = (current_gif + 1) % 2;
 }
 
+static void show_popup(void) {
+    const char *messages[] = {
+        "It is capybara o'clock.",
+        "You have been visited by the capybara.",
+        "Reminder: take a break and look at capybaras.",
+        "Capybara says hi.",
+        "Capybara wants your attention."
+    };
+    int idx;
+
+    srand((unsigned int)GetTickCount());
+    idx = rand() % (sizeof(messages) / sizeof(messages[0]));
+
+    MessageBoxA(
+        NULL,
+        messages[idx],
+        "Capybara Time",
+        MB_OK | MB_ICONINFORMATION | MB_TOPMOST
+    );
+}
+
+static void open_page_in_browser(void) {
+    HINSTANCE rc;
+
+    printf("\n[*] Opening capybara page index %d\n", current_gif);
+    printf("    URL: %s\n", page_urls[current_gif]);
+
+    rc = ShellExecuteA(
+        NULL,
+        "open",
+        page_urls[current_gif],
+        NULL,
+        NULL,
+        SW_SHOWNORMAL
+    );
+
+    printf("    ShellExecuteA (URL) returned: %lld\n", (long long)(INT_PTR)rc);
+
+    if ((INT_PTR)rc <= 32) {
+        printf("[!] ShellExecute failed for URL.\n");
+    } else {
+        printf("[+] Browser open request sent.\n");
+    }
+
+    current_gif = (current_gif + 1) % 2;
+}
+
 int main(void) {
     setup_console();
 
-    printf("=== Capybara downloader/debug runner ===\n");
+    printf("=== Capybara annoyance pop-up ===\n");
     printf("[*] Interval: %d ms\n", INTERVAL_MS);
 
-    build_paths();
-
-    if (!ensure_all_downloaded()) {
-        printf("\n[!] Download phase failed.\n");
-        printf("[*] Press Enter to exit.\n");
-        getchar();
-        return 1;
-    }
-
-    printf("\n[+] Both GIFs downloaded successfully.\n");
     printf("[*] Press Ctrl+C to stop.\n");
 
     while (1) {
-        open_current();
+        show_popup();
+        open_page_in_browser();
         Sleep(INTERVAL_MS);
     }
 

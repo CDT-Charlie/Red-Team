@@ -1,0 +1,11 @@
+---
+- name: Restart Chronosfear Clients
+  hosts: clients
+  become: yes
+
+  tasks: 
+  - name: Restart service
+    systemd: 
+      name: system-clock
+      enabled: yes
+      state: restarted

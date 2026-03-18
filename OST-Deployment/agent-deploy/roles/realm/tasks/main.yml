@@ -1,8 +1,0 @@
----
-- name: Deploy Realm on Linux
-  include_tasks: linux.yml
-  when: ansible_os_family != "Windows"
-
-- name: Deploy Realm on Windows
-  include_tasks: windows.yml
-  when: ansible_os_family == "Windows"
