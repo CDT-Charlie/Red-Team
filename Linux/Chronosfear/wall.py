@@ -17,7 +17,7 @@ def handle_conn(conn):
 
 def start_server():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind("0.0.0.0", 1423)
+    sock.bind(("0.0.0.0", 1423))
     sock.listen()
     while True:
         conn, addr = sock.accept()
