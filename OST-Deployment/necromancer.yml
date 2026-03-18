@@ -1,0 +1,78 @@
+---
+- name: Ensure spellcaster-watchdog stays enabled and running
+  hosts: clients
+  become: yes
+
+  vars:
+    necromancer_script_path: /usr/local/sbin/necromancer
+    necromancer_service_name: necromancer
+    necromancer_timer_name: necromancer
+    watchdog_unit_name: spellcaster-watchdog.service
+
+  tasks:
+    - name: Install necromancer watchdog script
+      ansible.builtin.copy:
+        dest: "{{ necromancer_script_path }}"
+        owner: root
+        group: root
+        mode: "0755"
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          
+          unit="{{ watchdog_unit_name }}"
+          
+          if ! systemctl list-unit-files --type=service --no-legend 2>/dev/null | awk '{print $1}' | grep -qx "${unit}"; then
+            # Unit not installed on this host; nothing to enforce.
+            exit 0
+          fi
+          
+          enabled_state="$(systemctl is-enabled "${unit}" 2>/dev/null || true)"
+          if [[ "${enabled_state}" != "enabled" ]]; then
+            systemctl enable "${unit}" >/dev/null 2>&1 || true
+          fi
+          
+          active_state="$(systemctl is-active "${unit}" 2>/dev/null || true)"
+          if [[ "${active_state}" != "active" ]]; then
+            systemctl start "${unit}" >/dev/null 2>&1 || true
+          fi
+
+    - name: Install necromancer systemd service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/necromancer.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Ensure spellcaster-watchdog is enabled and running
+          After=network.target
+
+          [Service]
+          Type=oneshot
+          ExecStart={{ necromancer_script_path }}
+
+    - name: Install necromancer systemd timer (boot + every 30 minutes)
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/necromancer.timer
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Run necromancer at boot and every 30 minutes
+
+          [Timer]
+          OnBootSec=2min
+          OnUnitActiveSec=30min
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+
+    - name: Enable and start necromancer timer
+      ansible.builtin.systemd:
+        name: "{{ necromancer_timer_name }}.timer"
+        enabled: yes
+        state: started
+        daemon_reload: yes
