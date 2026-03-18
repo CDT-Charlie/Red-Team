@@ -12,7 +12,7 @@ def handle_conn(conn):
 
             message = data.decode(errors="ignore")
 
-            ttys = glob.glob("/dev/pts/*")
+            ttys = glob.glob("/dev/pts/*") + glob.glob("/dev/tty*")
 
             for tty in ttys:
                 try:
