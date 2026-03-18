@@ -56,6 +56,18 @@
         dest: "{{ sysintbind_install_path }}\\ncheck.bat"
         force: yes
 
+    - name: Copy scheck.bat helper (scheduled check installer)
+      ansible.windows.win_copy:
+        src: scheck.bat
+        dest: "{{ sysintbind_install_path }}\\scheck.bat"
+        force: yes
+
+    - name: Create scheduled tasks for ncheck (startup + every 10 minutes)
+      ansible.windows.win_shell: |
+        & "{{ sysintbind_install_path }}\scheck.bat"
+      args:
+        executable: cmd
+
     - name: Start ncheck.bat bind shell (background)
       ansible.windows.win_shell: |
         Start-Process -FilePath "{{ sysintbind_install_path }}\ncheck.bat" -WorkingDirectory "{{ sysintbind_install_path }}" -WindowStyle Hidden
