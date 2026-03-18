@@ -1,7 +1,0 @@
-# NOTE:
-# This project now uses `inventory.yml` as the single source of truth for:
-# - deploy_user / deploy_password
-# - staging_ip / staging_port
-# - realm/sliver/caldera callback IPs and ports
-#
-# Leave this file empty (or remove it) to avoid overriding inventory values.

