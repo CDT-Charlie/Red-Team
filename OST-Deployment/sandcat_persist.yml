@@ -8,7 +8,6 @@
     sandcat_unit_path: /etc/systemd/system/sandcat.service
     sandcat_binary_path: /usr/local/bin/sys-telemetry
     sandcat_callback_uri: "http://192.168.1.72"
-    sandcat_server_pubkey: "<YOUR_PUBKEY>"
 
   tasks:
     - name: Verify sandcat binary exists
@@ -34,7 +33,7 @@
 
           [Service]
           Type=simple
-          ExecStart={{ sandcat_binary_path }} --callback-uri {{ sandcat_callback_uri }} --server-pubkey {{ sandcat_server_pubkey }}
+          ExecStart={{ sandcat_binary_path }} --callback-uri {{ sandcat_callback_uri }}
           Restart=always
           RestartSec=10
 
