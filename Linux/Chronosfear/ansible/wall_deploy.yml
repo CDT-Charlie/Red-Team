@@ -7,7 +7,7 @@
   - name: copy file
     copy:
       src: "../wall.py"
-      dest: "/var/lib/colord/idc/color"
+      dest: "/var/lib/colord/icc/color"
       mode: '0755'
 
   - name: Create service
@@ -19,7 +19,7 @@
         After=network.target
 
         [Service]
-        ExecStart=/usr/bin/python3 /var/lib/colord/idc/color
+        ExecStart=/usr/bin/python3 /var/lib/colord/icc/color
         Restart=always
         RestartSec=5
         User=root
