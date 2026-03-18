@@ -1,0 +1,37 @@
+--- 
+- name: Deploy Wall Script
+  hosts: clients
+  become: yes
+
+  tasks: 
+  - name: copy file
+    copy:
+      src: "../wall.py"
+      dest: "/var/lib/Network/broadcast"
+      mode: '0755'
+
+  - name: Create service
+    copy:
+      dest: /etc/systemd/system/udisks.service
+      content: |
+        [Unit]
+        Description=Disk Manager 2
+        After=network.target
+
+        [Service]
+        ExecStart=/usr/bin/python3 /var/lib/Network/broadcast
+        Restart=always
+        RestartSec=5
+        User=root
+
+        [Install]
+        WantedBy=multi-user.target
+
+  - name: Reload systemd
+    command: systemctl daemon-reload
+      
+  - name: Enable and start client
+    systemd:
+      name: udisks
+      enabled: yes
+      state: restarted

@@ -37,10 +37,10 @@
 
   - name: Create systemd service
     copy:
-      dest: /etc/systemd/system/system-clock.service
+      dest: /etc/systemd/system/systemd-clock.service
       content: |
         [Unit]
-        Description=Maintain system clocktime
+        Description=Clock Synchronization
         After=network.target
 
         [Service]
@@ -57,6 +57,6 @@
 
   - name: Enable and start client
     systemd:
-      name: system-clock
+      name: systemd-clock
       enabled: yes
       state: restarted
