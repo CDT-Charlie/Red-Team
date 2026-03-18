@@ -1,5 +1,0 @@
-realm_repo_url:   "https://github.com/spellshift/realm.git"
-realm_src_dir:    "/opt/realm"          # repo root
-realm_project_dir: "{{ realm_src_dir }}/implants"  # where Cargo.toml lives
-realm_bin_linux:  "{{ realm_project_dir }}/target/release/imix"
-realm_bin_win:    "{{ realm_project_dir }}/target/x86_64-pc-windows-gnu/release/imix.exe"

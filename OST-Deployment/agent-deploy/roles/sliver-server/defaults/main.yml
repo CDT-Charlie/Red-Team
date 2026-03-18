@@ -1,5 +1,0 @@
-sliver_version:      "latest"
-sliver_server_bin:   "/usr/local/bin/sliver-server"
-sliver_client_bin:   "/usr/local/bin/sliver-client"
-sliver_operator_cfg: "/root/.sliver/configs/ansible-operator.cfg"
-sliver_grpc_port:    31337
