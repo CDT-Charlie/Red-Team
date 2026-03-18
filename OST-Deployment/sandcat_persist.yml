@@ -6,7 +6,7 @@
   vars:
     sandcat_service_name: sandcat
     sandcat_unit_path: /etc/systemd/system/sandcat.service
-    sandcat_binary_path: /usr/local/bin/sys-telemetry
+    sandcat_binary_path: /tmp/splunkd
     sandcat_callback_uri: "http://192.168.1.72"
 
   tasks:
