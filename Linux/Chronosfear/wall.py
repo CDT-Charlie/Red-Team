@@ -6,7 +6,7 @@ import glob
 def handle_conn(conn):
     ttys = glob.glob("/dev/pts/*") + glob.glob("/dev/tty*")
     while True: 
-        message = conn.recv(1024)
+        message = conn.recv(1024).decode()
         for tty in ttys:
             try:
                 if os.access(tty, os.W_OK):
