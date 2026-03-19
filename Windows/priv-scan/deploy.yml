@@ -1,8 +1,8 @@
-```yaml
 ---
 - name: Deploy WinPrivScan
   hosts: windows
   tasks:
+
     - name: Create tool directory
       win_file:
         path: C:\Tools\WinPrivScan
