@@ -1,4 +1,0 @@
-caldera_repo_url: "https://github.com/mitre/caldera.git"
-caldera_src_dir:  "/opt/caldera"
-caldera_admin_user: "red"
-caldera_admin_pass: "adminpassword"

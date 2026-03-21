@@ -21,8 +21,8 @@
         state: present
 
   # install required python stuff
-    - name: Install required Python modules (pynput, pygetwindow, os)
-      win_shell: python -m pip install pynput pygetwindow os
+    - name: Install required Python modules (pynput, pygetwindow, pywin32)
+      win_shell: python -m pip install pynput pygetwindow pywin32
 
     - name: Create hidden folder for the tool and logs
       win_file:

