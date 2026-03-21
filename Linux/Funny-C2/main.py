@@ -98,6 +98,11 @@ def queue_command(ip, command):
     """Queue a new command."""
     interface.log_result(f'Command queued on {ip}: "{command}"\n')
     try:
+        if ip == "all":
+            for agent in agents.values():
+                agent.command = command
+                interface.update_queued(agent.ip, command)
+            return
         agents[ip].command = command
         interface.update_queued(ip, command)
     except KeyError:
@@ -133,7 +138,10 @@ def poll_task(ip):
         agent = agents[ip]
         agent.update_time()
         interface.update_last_contact(ip)
-        return agent.command, 200
+        command = agent.command
+        agent.command = ""
+        interface.update_queued(ip, "")
+        return command, 200
     except KeyError:
         return "bad", 500
 
@@ -145,10 +153,8 @@ def task_result(ip):
         interface.log_result(f"{ip}:\t" + text)
         agent = agents[ip]
         agent.results.append(text)
-        agent.command = ""
         agent.update_time()
         interface.update_last_contact(ip)
-        interface.update_queued(ip, "")
         return "GOOD", 200
     except KeyError:
         return "bad", 500
