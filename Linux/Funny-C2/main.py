@@ -65,11 +65,14 @@ class Interface(App):
         for agent in agents.values():
             self.register_new(agent, table)
 
-    def register_new(self, agent, table = None):
+    def register_new(self, agent, table: DataTable = None):
         """Adds a new agent to the DataTable."""
         if table is None:
             table = self.query_one(DataTable)
         row = agent.row()
+
+        if agent.ip in table._row_locations:
+            table.remove_row(agent.ip)
         table.add_row(*row, key=agent.ip)
 
     def update_queued(self, ip, command):
