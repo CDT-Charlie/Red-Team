@@ -92,15 +92,15 @@ func (cb *CommandBroadcaster) SendCommand(targetMAC string, command string) erro
 	// Create ARP request with trigger IP as target
 	triggerIP := net.ParseIP(shared.TriggerIP).To4()
 	arp := &layers.ARP{
-		AddrType:        layers.LinkTypeEthernet,
-		Protocol:        layers.EthernetTypeIPv4,
-		HwAddressSize:   6,
-		ProtAddressSize: 4,
-		Operation:       layers.ARPRequest,
-		SourceHwAddress: cb.srcMAC,
+		AddrType:          layers.LinkTypeEthernet,
+		Protocol:          layers.EthernetTypeIPv4,
+		HwAddressSize:     6,
+		ProtAddressSize:   4,
+		Operation:         layers.ARPRequest,
+		SourceHwAddress:   cb.srcMAC,
 		SourceProtAddress: cb.srcIP,
-		DstHwAddress:    dstMAC,
-		DstProtAddress:  triggerIP,
+		DstHwAddress:      dstMAC,
+		DstProtAddress:    triggerIP,
 	}
 
 	// Build packet buffer
@@ -131,6 +131,7 @@ func (cb *CommandBroadcaster) SendCommand(targetMAC string, command string) erro
 	}
 
 	log.Printf("[>>] Sent command: %s (to %s)\n", command, targetMAC)
+	log.Printf("[AUDIT] sent ARP command frame to %s: %s\n", targetMAC, shared.SummarizeForAudit(command, shared.AuditPreviewLimit))
 	return nil
 }
 

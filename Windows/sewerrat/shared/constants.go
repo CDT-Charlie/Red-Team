@@ -18,9 +18,9 @@ const (
 	// Command execution timeout (seconds)
 	CommandTimeout = 5
 
-	// ARP jitter settings (milliseconds)
-	JitterMinMs = 2000
-	JitterMaxMs = 5000
+	// Fixed pacing for the lab demo so packet timing is predictable during capture.
+	DemoResponseDelayMs = 1000
+	InterChunkDelayMs   = 250
 
 	// Response buffer size
 	MaxResponseSize = 4096
@@ -30,7 +30,7 @@ const (
 
 	// Default interfaces
 	DefaultLinuxInterface   = "eth0"
-	DefaultWindowsInterface = ""  // Will auto-detect
+	DefaultWindowsInterface = "" // Will auto-detect
 
 	// XOR encryption key (hardcoded for PoC; can be derived from credentials later)
 	// This is a simple 32-byte key for XOR cipher
@@ -39,10 +39,10 @@ const (
 
 // Error messages
 const (
-	ErrNoInterface     = "failed to find network interface"
-	ErrOpenDevice      = "failed to open network device"
-	ErrSetFilter       = "failed to set BPF filter"
-	ErrCommandTimeout  = "command execution timeout"
-	ErrEmptyCommand    = "empty command received"
-	ErrInvalidPayload  = "invalid payload format"
+	ErrNoInterface    = "failed to find network interface"
+	ErrOpenDevice     = "failed to open network device"
+	ErrSetFilter      = "failed to set BPF filter"
+	ErrCommandTimeout = "command execution timeout"
+	ErrEmptyCommand   = "empty command received"
+	ErrInvalidPayload = "invalid payload format"
 )

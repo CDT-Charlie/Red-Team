@@ -87,21 +87,23 @@ func (rl *ResponseListener) processPacket(packet gopacket.Packet) {
 	// Decode payload
 	data, err := shared.PayloadDecode(frameData, false)
 	if err != nil {
+		log.Printf("[AUDIT] matched marker but failed to decode response payload: %v\n", err)
 		return
 	}
 
 	// Try decryption if enabled
 	decrypted, err := shared.SafeDecrypt([]byte(data))
 	if err != nil {
+		log.Printf("[AUDIT] response decrypt failed, using raw payload: %v\n", err)
 		decrypted = []byte(data)
 	}
 
-	// Extract source MAC from ARP layer (offset 6-11 in ARP packet)
+	// Extract the Ethernet source MAC for audit attribution.
 	var sourceMAC string
-	if len(frameData) > 17 {
+	if len(frameData) >= 12 {
 		sourceMAC = fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
-			frameData[8], frameData[9], frameData[10],
-			frameData[11], frameData[12], frameData[13])
+			frameData[6], frameData[7], frameData[8],
+			frameData[9], frameData[10], frameData[11])
 	}
 
 	// Send response
@@ -111,7 +113,7 @@ func (rl *ResponseListener) processPacket(packet gopacket.Packet) {
 		Data:      string(decrypted),
 		Timestamp: time.Now(),
 	}:
-		// Response queued
+		log.Printf("[AUDIT] queued response from %s: %s\n", sourceMAC, shared.SummarizeForAudit(string(decrypted), shared.AuditPreviewLimit))
 	default:
 		log.Printf("[!] Response channel full\n")
 	}

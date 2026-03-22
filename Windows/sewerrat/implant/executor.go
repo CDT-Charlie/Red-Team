@@ -4,8 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-//	"log"
-// 	"os"
+	"log"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -33,6 +32,10 @@ func (ce *CommandExecutor) Execute(command string) (string, error) {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return "", fmt.Errorf("empty command")
+	}
+	if err := shared.ValidateDemoCommand(command); err != nil {
+		log.Printf("[AUDIT] rejected command outside lab policy: %s (%v)\n", shared.SummarizeForAudit(command, shared.AuditPreviewLimit), err)
+		return "", err
 	}
 
 	// Create context with timeout
@@ -66,7 +69,7 @@ func (ce *CommandExecutor) Execute(command string) (string, error) {
 
 	// If command timed out
 	if ctx.Err() == context.DeadlineExceeded {
-		output = fmt.Sprintf("[TIMEOUT] Command did not complete within %d seconds\n%s", 
+		output = fmt.Sprintf("[TIMEOUT] Command did not complete within %d seconds\n%s",
 			int(ce.timeout.Seconds()), output)
 	} else if err != nil {
 		// Include error in output if command failed
@@ -96,10 +99,7 @@ func (ce *CommandExecutor) ExecuteAsync(command string) <-chan string {
 // ValidateCommand checks if command string is valid
 // This is a basic sanity check; dangerous commands are NOT blocked
 func (ce *CommandExecutor) ValidateCommand(command string) bool {
-	if len(command) == 0 || len(command) > 1024 {
-		return false
-	}
-	return true
+	return shared.ValidateDemoCommand(command) == nil
 }
 
 // GetCommandExecutionSummary returns a summary of what was executed
@@ -110,6 +110,6 @@ func GetCommandExecutionSummary(command, output string) string {
 		outputPreview = outputPreview[:100] + "..."
 	}
 
-	return fmt.Sprintf("[EXEC] Command: %s | Output Length: %d bytes", 
+	return fmt.Sprintf("[EXEC] Command: %s | Output Length: %d bytes",
 		command, len(output))
 }

