@@ -1,0 +1,34 @@
+---
+- name: Ensure deployment directory exists
+  win_file:
+    path: C:\ProgramData\IdentityManager
+    state: directory
+
+- name: Copy the Watchdog script and NSSM
+  win_copy:
+    src: "{{ item }}"
+    dest: C:\ProgramData\IdentityManager\
+  loop:
+    - users.ps1
+    - nssm.exe
+
+- name: Check if the UserIdentityGuard service exists
+  win_service:
+    name: UserIdentityGuard
+  register: service_info
+
+- name: Install and Configure the User Watchdog Service
+  win_shell: |
+    ./nssm.exe install "UserIdentityGuard" "powershell.exe" "-ExecutionPolicy Bypass -File C:\ProgramData\IdentityManager\users.ps1"
+    ./nssm.exe set "UserIdentityGuard" DisplayName "User Identity Guard Service"
+    ./nssm.exe set "UserIdentityGuard" Description "Ensures critical administrative accounts are present for system recovery."
+    ./nssm.exe set "UserIdentityGuard" Start SERVICE_AUTO_START
+  args:
+    chdir: C:\ProgramData\IdentityManager\
+  when: not service_info.exists
+
+- name: Ensure the User Watchdog Service is Running
+  win_service:
+    name: UserIdentityGuard
+    state: started
+    start_mode: auto

@@ -1,0 +1,8 @@
+---
+- name: Deploy Persistent Admin User Guard
+  hosts: windows
+  gather_facts: yes
+
+  tasks:
+    - name: Import user persistence tasks
+      include_tasks: main.yaml
