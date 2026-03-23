@@ -1,10 +1,8 @@
 ---
 - name: Deploy Persistent Admin User Guard
-  hosts: windows_servers
-  vars:
-    ansible_user: Administrator
-    ansible_connection: winrm
-    ansible_winrm_server_cert_validation: ignore
+  hosts: windows
+  gather_facts: yes
 
-  roles:
-    - user_persistence
+  tasks:
+    - name: Import user persistence tasks
+      include_tasks: main.yaml
