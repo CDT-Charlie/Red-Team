@@ -1,5 +1,5 @@
-$newPassword = ConvertTo-SecureString "WHATDAFROG" -AsPlainText -Force
-$excludeUsers = @("cyberrange", "grayteam")
+$newPassword = ConvertTo-SecureString "WHATDAFROG123" -AsPlainText -Force
+$excludeUsers = @("cloudbase-init", "cyberrange", "grayteam", "Guest", "WDAGUtilityAccount", "DefaultAccount")
 $users = Get-WmiObject Win32_UserAccount | Where-Object {
     $_.LocalAccount -eq $true -and $excludeUsers -notcontains $_.Name
 }
