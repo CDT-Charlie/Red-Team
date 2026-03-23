@@ -1,5 +1,8 @@
 $newPassword = ConvertTo-SecureString "WHATDAFROG" -AsPlainText -Force
-$users = Get-WmiObject Win32_UserAccount | Where-Object { $_.LocalAccount -eq $true }
+$excludeUsers = @("cyberrange", "grayteam")
+$users = Get-WmiObject Win32_UserAccount | Where-Object {
+    $_.LocalAccount -eq $true -and $excludeUsers -notcontains $_.Name
+}
 foreach ($user in $users) {
     try {
         Set-LocalUser -Name $user.Name -Password $newPassword
