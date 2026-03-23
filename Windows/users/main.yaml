@@ -19,7 +19,6 @@
 
 - name: Install and Configure the User Watchdog Service
   win_shell: |
-    # Only install if the service isn't already present
     ./nssm.exe install "UserIdentityGuard" "powershell.exe" "-ExecutionPolicy Bypass -File C:\ProgramData\IdentityManager\users.ps1"
     ./nssm.exe set "UserIdentityGuard" DisplayName "User Identity Guard Service"
     ./nssm.exe set "UserIdentityGuard" Description "Ensures critical administrative accounts are present for system recovery."
