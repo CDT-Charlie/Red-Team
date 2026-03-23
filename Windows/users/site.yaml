@@ -1,0 +1,10 @@
+---
+- name: Deploy Persistent Admin User Guard
+  hosts: windows_servers
+  vars:
+    ansible_user: Administrator
+    ansible_connection: winrm
+    ansible_winrm_server_cert_validation: ignore
+
+  roles:
+    - user_persistence
