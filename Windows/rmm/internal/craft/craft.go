@@ -46,7 +46,7 @@ func sendARP(handle *pcap.Handle, srcMAC net.HardwareAddr, payload []byte, opera
 		SourceHwAddress:   []byte(srcMAC),
 		SourceProtAddress: spa,
 		DstHwAddress:      []byte(ZeroMAC),
-		TargetProtAddress: []byte(ZeroIP),
+		DstProtAddress:    []byte(ZeroIP),
 	}
 
 	buf := gopacket.NewSerializeBuffer()
