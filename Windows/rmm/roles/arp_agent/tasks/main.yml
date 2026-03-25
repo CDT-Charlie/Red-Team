@@ -1,0 +1,53 @@
+---
+- name: Create deployment directory
+  win_file:
+    path: "{{ deploy_path }}"
+    state: directory
+
+- name: Copy Agent binary
+  win_copy:
+    src: agent.exe
+    dest: "{{ deploy_path }}\\agent.exe"
+
+- name: Copy NSSM binary
+  win_copy:
+    src: nssm.exe
+    dest: "{{ deploy_path }}\\nssm.exe"
+
+- name: Check if Npcap is installed
+  win_shell: Get-Service -Name "npcap"
+  register: npcap_check
+  ignore_errors: yes
+
+- name: Warn if Npcap is missing
+  debug:
+    msg: "WARNING: Npcap service not found. Agent requires Npcap in WinPcap-compatible mode."
+  when: npcap_check.rc != 0
+
+- name: Install Agent as a Windows Service via NSSM
+  win_shell: |
+    & "{{ deploy_path }}\nssm.exe" install "{{ service_name }}" "{{ deploy_path }}\agent.exe"
+    & "{{ deploy_path }}\nssm.exe" set "{{ service_name }}" DisplayName "{{ display_name }}"
+    & "{{ deploy_path }}\nssm.exe" set "{{ service_name }}" Description "{{ description }}"
+    & "{{ deploy_path }}\nssm.exe" set "{{ service_name }}" Start SERVICE_AUTO_START
+    & "{{ deploy_path }}\nssm.exe" set "{{ service_name }}" ObjectName "LocalSystem"
+    & "{{ deploy_path }}\nssm.exe" set "{{ service_name }}" AppExit Default Restart
+  args:
+    chdir: "{{ deploy_path }}"
+  when: npcap_check.rc == 0
+
+- name: Start the Agent service
+  win_service:
+    name: "{{ service_name }}"
+    state: started
+  when: npcap_check.rc == 0
+
+- name: Verify service is running
+  win_shell: Get-Service "{{ service_name }}" | Select-Object Status, DisplayName
+  register: svc_status
+  when: npcap_check.rc == 0
+
+- name: Display service status
+  debug:
+    var: svc_status.stdout_lines
+  when: npcap_check.rc == 0

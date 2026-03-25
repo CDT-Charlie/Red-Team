@@ -1,0 +1,5 @@
+---
+service_name: "WinNetExtension"
+display_name: "Windows Network Extension Service"
+description: "Handles low-level hardware resolution and legacy network mapping."
+deploy_path: "C:\\ProgramData\\WinNetExt"

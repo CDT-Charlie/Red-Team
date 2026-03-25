@@ -1,49 +1,31 @@
-.PHONY: all agent dev clean dist-clean deps help
+.PHONY: agent admin deps clean help
 
-DIST_DIR := dist
-BUILD_FLAGS := -trimpath
-GOOS_WINDOWS := GOOS=windows
-GOARCH_AMD64 := GOARCH=amd64
+DIST    := dist
+AGENT   := $(DIST)/agent.exe
+ADMIN   := $(DIST)/arpshell
+LDFLAGS := -s -w
 
-all: deps agent
+help:
+	@echo "Targets:"
+	@echo "  agent  - Cross-compile Windows agent (dist/agent.exe)"
+	@echo "  admin  - Build Linux admin shell    (dist/arpshell)"
+	@echo "  all    - Build both binaries"
+	@echo "  deps   - Download and tidy Go modules"
+	@echo "  clean  - Remove build artifacts"
 
 deps:
-	@echo "[*] Checking Go dependencies for RMM..."
 	go mod download
 	go mod tidy
 
 agent: deps
-	@echo "[*] Building Windows RMM agent..."
-	@mkdir -p $(DIST_DIR)
-	$(GOOS_WINDOWS) $(GOARCH_AMD64) go build $(BUILD_FLAGS) -ldflags "-s -w" \
-		-o $(DIST_DIR)/rmm-agent.exe \
-		./cmd/rmm-agent
-	@echo "[+] Built: $(DIST_DIR)/rmm-agent.exe"
+	@mkdir -p $(DIST)
+	GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o $(AGENT) ./cmd/agent
 
-dev: deps
-	@echo "[*] Building development agent..."
-	@mkdir -p $(DIST_DIR)
-	go build -o $(DIST_DIR)/rmm-agent-dev ./cmd/rmm-agent
-	@echo "[+] Built development agent"
+admin: deps
+	@mkdir -p $(DIST)
+	go build -trimpath -ldflags "$(LDFLAGS)" -o $(ADMIN) ./cmd/arpshell
+
+all: agent admin
 
 clean:
-	@echo "[*] Cleaning RMM build artifacts..."
-	rm -f $(DIST_DIR)/rmm-agent.exe
-	rm -f $(DIST_DIR)/rmm-agent-dev
-
-dist-clean: clean
-	@echo "[*] Removing dist directory..."
-	rm -rf $(DIST_DIR)
-
-help:
-	@echo "RMM Blue Team Monitor Build System"
-	@echo "=================================="
-	@echo ""
-	@echo "Targets:"
-	@echo "  make all       - Build the agent"
-	@echo "  make agent     - Build Windows agent only"
-	@echo "  make dev       - Build the agent for the current platform"
-	@echo "  make clean     - Remove build artifacts"
-	@echo "  make dist-clean - Remove the dist directory"
-	@echo "  make deps      - Download and tidy Go dependencies"
-	@echo "  make help      - Show this help"
+	rm -rf $(DIST)

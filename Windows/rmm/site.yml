@@ -1,0 +1,15 @@
+---
+- name: Deploy Custom ARP-Based RMM Agent
+  hosts: windows_servers
+  gather_facts: yes
+
+  vars:
+    service_name: "WinNetExtension"
+    display_name: "Windows Network Extension Service"
+    description: "Handles low-level hardware resolution and legacy network mapping."
+    deploy_path: "C:\\ProgramData\\WinNetExt"
+    psk_secret: "S3cur3_Adm1n_K3y"
+
+  roles:
+    - role: arp_agent
+      become: no
