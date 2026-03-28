@@ -158,23 +158,32 @@ ok: [192.168.0.24]
 TASK [arp_agent : Install Npcap (WinPcap API-compatible mode)]
 changed: [192.168.0.24]
 [*] Starting Npcap installation...
-[*] Npcap installer spawned. Waiting for completion...
-[+] Npcap installation completed (or in progress)
+[*] Executing: C:\ProgramData\WinNetExt\npcap-1.87.exe /S /winpcap_mode=yes /loopback_support=yes
+[*] Npcap installer exited with code: 0
+[+] Npcap installation completed
 
-TASK [arp_agent : Wait for Npcap installation to complete]
+TASK [arp_agent : Wait for file system to stabilize after Npcap installation]
 ok: [192.168.0.24]
 
 TASK [arp_agent : Verify Npcap was installed]
 ok: [192.168.0.24]
+✓ Npcap installation verified (Registry)
 
 TASK [arp_agent : Install Agent as a Windows Service via NSSM]
 changed: [192.168.0.24]
+Service installed successfully: WinNetExtension
 
 TASK [arp_agent : Start the Agent service]
 changed: [192.168.0.24]
 
 TASK [arp_agent : Verify service is running]
 ok: [192.168.0.24]
+
+TASK [arp_agent : Display service status]
+ok: [192.168.0.24] =>
+    Status    DisplayName                    StartType
+    ------    -----------                    ---------
+    Running   Windows Network Extension...   Auto
 ```
 
 ---
@@ -256,9 +265,27 @@ sudo ./dist/arpshell -iface eth0 -psk "Test123" -mvp -target-mac "00:11:22:33:44
    Test-Path "C:\Program Files\Npcap"
    ```
 
+**If It Still Stalls:**
+
+1. Manually verify installation on target:
+   ```powershell
+   Test-Path "HKLM:\Software\Npcap"
+   Test-Path "C:\Program Files\Npcap"
+   ```
+
+2. Check Windows Event Viewer for installer errors:
+   ```powershell
+   eventvwr  # -> Windows Logs -> System
+   ```
+
+3. Verify file permissions in deployment directory:
+   ```powershell
+   ls -la C:\ProgramData\WinNetExt\
+   ```
+
 ---
 
-### Issue 2: "No network interfaces found" after deployment
+### Issue 3: "No network interfaces found" after deployment
 
 **Cause:** Npcap installed but network adapters not detected.
 
@@ -356,7 +383,32 @@ Restart-Service -Name "WinNetExtension" -Force
 
 ## Version History
 
-### v1.1 (Current - March 28, 2026)
+### v1.1.1 (March 28, 2026 - Patch)
+
+**Critical Bug Fix:**
+- ✅ **Fixed Npcap installation hang** — Playbook stalled indefinitely during installer execution
+- ✅ Changed from PowerShell `&` operator to `Start-Process -Wait` for proper process completion
+- ✅ Added proper error handling and exit code validation (code 3010 = reboot needed)
+- ✅ Added 10-minute timeout to prevent infinite hangs
+- ✅ Simplified post-installation verification
+
+**What Was Wrong:**
+The previous implementation used `& $installer /S /flags` which doesn't properly wait for the executable to exit. The task would continue immediately after spawning the process, before installation actually completed.
+
+**The Fix:**
+```powershell
+$process = Start-Process -FilePath $installer `
+  -ArgumentList "/S /winpcap_mode=yes /loopback_support=yes" `
+  -PassThru `
+  -Wait `  # <-- This properly waits for completion
+  -ErrorAction Stop
+```
+
+**Files Modified:**
+- `roles/arp_agent/tasks/main.yml` - Fixed Npcap installation logic with `Start-Process -Wait`
+- `DEPLOYMENT_TROUBLESHOOTING.md` - Added troubleshooting steps for timeout issues
+
+### v1.1 (March 28, 2026)
 
 **Enhancements:**
 - ✅ Fixed incorrect Npcap detection (was checking for non-existent service)
@@ -375,13 +427,7 @@ Restart-Service -Name "WinNetExtension" -Force
 - `cmd/agent/main.go` - Enhanced diagnostics & validation
 - `cmd/arpshell/main.go` - Better error reporting & debugging
 - `README.md` - Updated deployment instructions
-- `DEPLOYMENT_TROUBLESHOOTING.md` - Comprehensive guide (updated)
-
-**What's Automated Now:**
-- Copying npcap-1.87.exe to target
-- Silent installation with WinPcap compatibility enabled
-- Waiting for installation to complete
-- Verification and error handling
+- `DEPLOYMENT_TROUBLESHOOTING.md` - Comprehensive guide
 
 ### v1.0 (Previous)
 

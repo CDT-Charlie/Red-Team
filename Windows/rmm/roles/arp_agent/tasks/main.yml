@@ -44,44 +44,39 @@
     $npcapInstaller = "{{ deploy_path }}\npcap-1.87.exe"
     
     Write-Output "[*] Starting Npcap installation..."
-    # Silent install with WinPcap API-compatible mode enabled
-    # /S = Silent install
-    # /winpcap_mode=yes = Enable WinPcap API-compatible mode
-    # /loopback_support=yes = Enable loopback support for testing
-    & $npcapInstaller /S /winpcap_mode=yes /loopback_support=yes
+    Write-Output "[*] Executing: $npcapInstaller /S /winpcap_mode=yes /loopback_support=yes"
     
-    Write-Output "[*] Npcap installer spawned. Waiting for completion..."
-    Start-Sleep -Seconds 15
-    
-    Write-Output "[+] Npcap installation completed (or in progress)"
+    try {
+      # Use Start-Process with -Wait to properly wait for installer completion
+      $process = Start-Process -FilePath $npcapInstaller `
+        -ArgumentList "/S /winpcap_mode=yes /loopback_support=yes" `
+        -PassThru `
+        -Wait `
+        -ErrorAction Stop
+      
+      $exitCode = $process.ExitCode
+      Write-Output "[*] Npcap installer exited with code: $exitCode"
+      
+      if ($exitCode -eq 0 -or $exitCode -eq 3010) {
+        Write-Output "[+] Npcap installation completed"
+        if ($exitCode -eq 3010) {
+          Write-Output "[INFO] Exit code 3010 = system restart required"
+        }
+      } else {
+        Write-Output "[WARN] Npcap installer exited with code $exitCode"
+        Write-Output "[WARN] Proceeding with verification..."
+      }
+    } catch {
+      Write-Output "[ERROR] Failed to execute installer: $_"
+      throw $_
+    }
   args:
     chdir: "{{ deploy_path }}"
   when: npcap_check.rc != 0
+  timeout: 600
 
-- name: Wait for Npcap installation to complete
-  win_shell: |
-    # Wait up to 60 seconds for Npcap service to appear
-    $timeout = 60
-    $elapsed = 0
-    $installDir = "C:\Program Files\Npcap"
-    
-    while ($elapsed -lt $timeout) {
-      if (Test-Path $installDir) {
-        Write-Output "Npcap installation directory found"
-        exit 0
-      }
-      Start-Sleep -Seconds 2
-      $elapsed += 2
-    }
-    
-    # Check via registry as fallback
-    if (Test-Path "HKLM:\Software\Npcap") {
-      Write-Output "Npcap registry entry found"
-      exit 0
-    }
-    
-    Write-Output "[WARN] Npcap installation may still be in progress"
-    exit 0
+- name: Wait for file system to stabilize after Npcap installation
+  win_shell: Start-Sleep -Seconds 5
   when: npcap_check.rc != 0
 
 - name: Verify Npcap was installed
