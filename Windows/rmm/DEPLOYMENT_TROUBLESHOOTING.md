@@ -383,6 +383,73 @@ Restart-Service -Name "WinNetExtension" -Force
 
 ## Version History
 
+### v1.1.2 (March 28, 2026 - Installation Reliability)
+
+**Problem Addressed:**
+- ❌ Npcap installer exited code 0 but didn't actually install
+- ❌ Registry check failed immediately after installation
+- ❌ Agent service failed to start (no Npcap driver available)
+- ❌ Insufficient wait time between installer exit and verification
+
+**Root Causes:**
+1. Only 5 seconds wait before checking registry (installer still completing)
+2. No explicit admin context on installer execution
+3. No retry logic if first verification failed
+4. Generic error messages without troubleshooting guidance
+
+**The Fix (v1.1.2):**
+```powershell
+# 1. Added explicit admin context
+$process = Start-Process -FilePath $npcapInstaller `
+  -ArgumentList "/S /winpcap_mode=yes /loopback_support=yes" `
+  -PassThru -Wait -Verb RunAs -ErrorAction Stop  # <-- -Verb RunAs added
+
+# 2. Increased wait: 30 seconds initial + 30 seconds retry (60 total)
+Start-Sleep -Seconds 30
+
+# 3. Two-stage verification with retry
+# Verify attempt 1 (after 30 sec)
+# If failed, sleep 30 more seconds
+# Verify attempt 2 (after 60 sec total)
+```
+
+**Files Modified:**
+- `roles/arp_agent/tasks/main.yml` - Lines 40-140: Complete install/verify sequence rewrite
+  - Added `-Verb RunAs` for admin context
+  - Increased wait to 30 seconds
+  - Added second verification task with retry
+  - Added detailed logging and error messages
+
+**Expected Output (Success):**
+```
+TASK [arp_agent : Install Npcap] *** ok: [192.168.0.24]
+[*] Starting Npcap installation...
+[*] Installer exists: True
+[*] Npcap installer exited with code: 0
+[+] Npcap installation completed (exit code: 0)
+
+TASK [arp_agent : Verify Npcap was installed (Attempt 1)] *** ok: [192.168.0.24]
+✓ Npcap verified via registry
+
+TASK [arp_agent : Display Npcap verification result] *** ok: [192.168.0.24]
+Npcap installation succeeded
+```
+
+**If Verification Still Fails:**
+The playbook will output detailed troubleshooting:
+```
+✗ Npcap still not detected after 60 second wait
+[!] Possible causes:
+    1. Installer requires interactive mode
+    2. System pending reboot
+    3. UAC or permission issues
+
+Manual verification commands:
+  Test-Path 'HKLM:\Software\Npcap'
+  Test-Path 'C:\Program Files\Npcap'
+  Get-ChildItem 'C:\Program Files' | grep -i npcap
+```
+
 ### v1.1.1 (March 28, 2026 - Patch)
 
 **Critical Bug Fix:**

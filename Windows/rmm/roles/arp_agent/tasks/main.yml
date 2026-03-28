@@ -44,65 +44,122 @@
     $npcapInstaller = "{{ deploy_path }}\npcap-1.87.exe"
     
     Write-Output "[*] Starting Npcap installation..."
-    Write-Output "[*] Executing: $npcapInstaller /S /winpcap_mode=yes /loopback_support=yes"
+    Write-Output "[*] Installer path: $npcapInstaller"
+    Write-Output "[*] Installer exists: $(Test-Path $npcapInstaller)"
     
     try {
-      # Use Start-Process with -Wait to properly wait for installer completion
+      # Run installer with explicit admin context
       $process = Start-Process -FilePath $npcapInstaller `
         -ArgumentList "/S /winpcap_mode=yes /loopback_support=yes" `
         -PassThru `
         -Wait `
+        -Verb RunAs `
         -ErrorAction Stop
       
       $exitCode = $process.ExitCode
       Write-Output "[*] Npcap installer exited with code: $exitCode"
       
       if ($exitCode -eq 0 -or $exitCode -eq 3010) {
-        Write-Output "[+] Npcap installation completed"
+        Write-Output "[+] Npcap installation completed (exit code: $exitCode)"
         if ($exitCode -eq 3010) {
           Write-Output "[INFO] Exit code 3010 = system restart required"
         }
       } else {
-        Write-Output "[WARN] Npcap installer exited with code $exitCode"
-        Write-Output "[WARN] Proceeding with verification..."
+        Write-Output "[WARN] Installer exited with code: $exitCode"
       }
     } catch {
-      Write-Output "[ERROR] Failed to execute installer: $_"
-      throw $_
+      Write-Output "[!] Failed to execute installer: $_"
+      Write-Output "[!] This is non-fatal - proceeding to verification..."
     }
+    
+    Write-Output "[*] Npcap installation phase completed"
   args:
     chdir: "{{ deploy_path }}"
   when: npcap_check.rc != 0
   timeout: 600
 
-- name: Wait for file system to stabilize after Npcap installation
-  win_shell: Start-Sleep -Seconds 5
+- name: Wait for Npcap installation to fully complete
+  win_shell: |
+    Write-Output "[*] Waiting for Npcap installation to settle..."
+    Start-Sleep -Seconds 30
+    Write-Output "[*] Checking if installation directory exists..."
+    if (Test-Path "C:\Program Files\Npcap") {
+      Write-Output "[+] Npcap directory found"
+    } else {
+      Write-Output "[*] Directory check complete"
+    }
   when: npcap_check.rc != 0
 
-- name: Verify Npcap was installed
+- name: Verify Npcap was installed (Attempt 1)
   win_shell: |
-    # Check for Npcap registry entries (WinPcap-compatible mode)
+    $npcapPath = "HKLM:\Software\Npcap"
+    $winpcapPath = "HKLM:\Software\WinPcap"
+    $installDir = "C:\Program Files\Npcap"
+    
+    Write-Output "[*] Checking registry: $npcapPath"
+    Write-Output "    Exists: $(Test-Path $npcapPath)"
+    Write-Output "[*] Checking registry: $winpcapPath"
+    Write-Output "    Exists: $(Test-Path $winpcapPath)"
+    Write-Output "[*] Checking directory: $installDir"
+    Write-Output "    Exists: $(Test-Path $installDir)"
+    
+    if ((Test-Path $npcapPath) -or (Test-Path $winpcapPath)) {
+        Write-Output "✓ Npcap verified via registry"
+        exit 0
+    } elseif (Test-Path $installDir) {
+        Write-Output "✓ Npcap verified via directory"
+        exit 0
+    } else {
+        Write-Output "✗ Npcap not found - waiting before retry..."
+        exit 1
+    }
+  register: npcap_verify1
+  when: npcap_check.rc != 0
+  ignore_errors: yes
+
+- name: Wait before verification retry (if needed)
+  win_shell: |
+    Write-Output "[*] Waiting 30 seconds before verification retry..."
+    Start-Sleep -Seconds 30
+  when: npcap_check.rc != 0 and npcap_verify1.rc != 0
+
+- name: Verify Npcap was installed (Attempt 2)
+  win_shell: |
     $npcapPath = "HKLM:\Software\Npcap"
     $winpcapPath = "HKLM:\Software\WinPcap"
     $installDir = "C:\Program Files\Npcap"
     
     if ((Test-Path $npcapPath) -or (Test-Path $winpcapPath)) {
-        Write-Output "✓ Npcap installation verified (Registry)"
+        Write-Output "✓ Npcap installation verified (Registry - Attempt 2)"
         exit 0
     } elseif (Test-Path $installDir) {
-        Write-Output "✓ Npcap installation directory found"
+        Write-Output "✓ Npcap installation verified (Directory - Attempt 2)"
         exit 0
     } else {
-        Write-Output "✗ Npcap installation could not be verified"
-        Write-Output "  Please verify manually or run installer: $npcapPath\npcap-1.87.exe /S /winpcap_mode=yes"
-        exit 0
+        Write-Output "✗ Npcap still not detected after 60 second wait"
+        Write-Output "[!] Possible causes:"
+        Write-Output "    1. Installer requires interactive mode"
+        Write-Output "    2. System pending reboot"
+        Write-Output "    3. UAC or permission issues"
+        Write-Output ""
+        Write-Output "Manual troubleshooting:"
+        Write-Output "  Test-Path 'HKLM:\Software\Npcap'"
+        Write-Output "  Test-Path 'C:\Program Files\Npcap'"
+        Write-Output "  Get-ChildItem 'C:\Program Files' | grep -i npcap"
+        exit 1
     }
-  register: npcap_verify
+  register: npcap_verify2
+  when: npcap_check.rc != 0 and npcap_verify1.rc != 0
+  ignore_errors: yes
+
+- name: Set Npcap verification result
+  set_fact:
+    npcap_install_success: "{{ (npcap_verify1.rc == 0) or (npcap_verify2.rc == 0) }}"
   when: npcap_check.rc != 0
 
 - name: Display Npcap verification result
   debug:
-    msg: "{{ npcap_verify.stdout | trim }}"
+    msg: "Npcap installation {{ 'succeeded' if npcap_install_success else 'could not be verified' }}"
   when: npcap_check.rc != 0
 
 - name: Install Agent as a Windows Service via NSSM
