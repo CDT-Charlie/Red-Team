@@ -46,33 +46,34 @@
     Write-Output "[*] Starting Npcap installation..."
     Write-Output "[*] Installer path: $npcapInstaller"
     Write-Output "[*] Installer exists: $(Test-Path $npcapInstaller)"
+    Write-Output "[*] Current user: $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)"
+    Write-Output "[*] Is admin: $([System.Security.Principal.WindowsPrincipal]::new([System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole('Administrator'))"
     
     try {
-      # Run installer with explicit admin context
+      # Run installer directly (WinRM already has admin context)
+      Write-Output "[*] Executing installer with arguments: /S /winpcap_mode=yes /loopback_support=yes"
       $process = Start-Process -FilePath $npcapInstaller `
         -ArgumentList "/S /winpcap_mode=yes /loopback_support=yes" `
         -PassThru `
         -Wait `
-        -Verb RunAs `
+        -NoNewWindow `
         -ErrorAction Stop
       
       $exitCode = $process.ExitCode
-      Write-Output "[*] Npcap installer exited with code: $exitCode"
+      Write-Output "[*] Installer process exited with code: $exitCode"
+      Write-Output "[*] Waiting for installer cleanup..."
+      Start-Sleep -Seconds 5
       
       if ($exitCode -eq 0 -or $exitCode -eq 3010) {
-        Write-Output "[+] Npcap installation completed (exit code: $exitCode)"
-        if ($exitCode -eq 3010) {
-          Write-Output "[INFO] Exit code 3010 = system restart required"
-        }
+        Write-Output "[+] Installer exited successfully (code: $exitCode)"
       } else {
-        Write-Output "[WARN] Installer exited with code: $exitCode"
+        Write-Output "[!] Installer exited with non-standard code: $exitCode"
       }
     } catch {
       Write-Output "[!] Failed to execute installer: $_"
-      Write-Output "[!] This is non-fatal - proceeding to verification..."
     }
     
-    Write-Output "[*] Npcap installation phase completed"
+    Write-Output "[*] Installation attempt completed"
   args:
     chdir: "{{ deploy_path }}"
   when: npcap_check.rc != 0
@@ -162,33 +163,85 @@
     msg: "Npcap installation {{ 'succeeded' if npcap_install_success else 'could not be verified' }}"
   when: npcap_check.rc != 0
 
+- name: Clean up any existing agent service (force removal)
+  win_shell: |
+    $service = "{{ service_name }}"
+    
+    Write-Output "[*] Checking for existing service: $service"
+    
+    try {
+      $svc = Get-Service -Name $service -ErrorAction SilentlyContinue
+      if ($svc) {
+        Write-Output "[*] Service found. Stopping..."
+        Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+        
+        Write-Output "[*] Force-deleting service via sc.exe..."
+        $result = & cmd.exe /c "sc.exe delete `"$service`"" 2>&1
+        Write-Output "[*] sc.exe output: $result"
+        
+        Write-Output "[*] Waiting for service cleanup..."
+        Start-Sleep -Seconds 5
+        
+        # Verify deletion
+        $check = Get-Service -Name $service -ErrorAction SilentlyContinue
+        if ($check) {
+          Write-Output "[!] Service still exists after deletion attempt"
+        } else {
+          Write-Output "[+] Service successfully removed"
+        }
+      } else {
+        Write-Output "[+] No existing service found - proceeding with clean install"
+      }
+    } catch {
+      Write-Output "[!] Error during cleanup: $_"
+    }
+  ignore_errors: yes
+
 - name: Install Agent as a Windows Service via NSSM
   win_shell: |
     $service = "{{ service_name }}"
     $agentPath = "{{ deploy_path }}\agent.exe"
     $nssmPath = "{{ deploy_path }}\nssm.exe"
     
-    # Check if service already exists
+    Write-Output "[*] Installing service: $service"
+    Write-Output "[*] Agent path: $agentPath"
+    
     try {
-      Get-Service -Name $service -ErrorAction Stop | Out-Null
-      Write-Output "Service $service already exists. Removing..."
-      & $nssmPath remove $service confirm
+      # Install new service
+      Write-Output "[*] Running NSSM install..."
+      & $nssmPath install $service $agentPath
+      
+      Write-Output "[*] Configuring service properties..."
+      & $nssmPath set $service DisplayName "{{ display_name }}"
+      & $nssmPath set $service Description "{{ description }}"
+      & $nssmPath set $service Start SERVICE_AUTO_START
+      & $nssmPath set $service ObjectName "LocalSystem"
+      & $nssmPath set $service AppExit Default Restart
+      & $nssmPath set $service AppNoConsole 1
+      
+      Write-Output "[+] Service installed successfully: $service"
     } catch {
-      Write-Output "Service $service does not exist. Creating new..."
+      Write-Output "[!] Error installing service: $_"
+      throw $_
     }
-    
-    # Install new service
-    & $nssmPath install $service $agentPath
-    & $nssmPath set $service DisplayName "{{ display_name }}"
-    & $nssmPath set $service Description "{{ description }}"
-    & $nssmPath set $service Start SERVICE_AUTO_START
-    & $nssmPath set $service ObjectName "LocalSystem"
-    & $nssmPath set $service AppExit Default Restart
-    & $nssmPath set $service AppNoConsole 1
-    
-    Write-Output "Service installed successfully: $service"
   args:
     chdir: "{{ deploy_path }}"
+
+- name: Wait for service registration to complete
+  win_shell: |
+    Write-Output "[*] Waiting for service registration..."
+    Start-Sleep -Seconds 3
+    
+    $service = "{{ service_name }}"
+    $check = Get-Service -Name $service -ErrorAction SilentlyContinue
+    if ($check) {
+      Write-Output "[+] Service registered and visible: $($check.Name)"
+      Write-Output "    Status: $($check.Status)"
+      Write-Output "    StartType: $($check.StartType)"
+    } else {
+      Write-Output "[!] Warning: Service not yet visible after registration wait"
+    }
 
 - name: Start the Agent service
   win_service:

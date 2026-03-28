@@ -383,6 +383,97 @@ Restart-Service -Name "WinNetExtension" -Force
 
 ## Version History
 
+### v1.1.3 (March 28, 2026 - Installation & Service Fixes)
+
+**Problems Addressed:**
+1. ❌ Npcap installer exits code 0 but files/registry never actually appear
+2. ❌ Service marked for deletion error (0x430) blocks new service creation
+3. ❌ Insufficient verification logging to diagnose installer failures
+
+**Root Causes:**
+1. **Npcap**: `-Verb RunAs` in WinRM context doesn't work reliably. Added diagnostics to see user context and admin status during execution.
+2. **Service**: Previous failed deployments leave service markers in deletion state. NSSM remove doesn't force cleanup. Must use `sc.exe delete` with force-stop.
+3. **Timing**: Service needs registration window before next task attempts access.
+
+**Solutions:**
+
+*Npcap Installation (v1.1.3)*:
+- Removed `-Verb RunAs` (doesn't work in WinRM)
+- Added user/admin context diagnostics
+- Added 5-second post-install wait before verification
+- Clearer exit code logging
+
+```powershell
+# Diagnostics added:
+Write-Output "[*] Current user: $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)"
+Write-Output "[*] Is admin: $([System.Security.Principal.WindowsPrincipal]::new(...).IsInRole('Administrator'))"
+
+# Execution (simpler, no -Verb RunAs):
+$process = Start-Process -FilePath $npcapInstaller `
+  -ArgumentList "/S /winpcap_mode=yes /loopback_support=yes" `
+  -PassThru -Wait -NoNewWindow -ErrorAction Stop
+```
+
+*Service Cleanup (NEW - v1.1.3)*:
+- Added "Clean up any existing agent service" task before installation
+- Forces service stop with `-Force`
+- Uses `sc.exe delete` with immediate cleanup
+- Waits 5 seconds for Windows to fully process deletion
+- Verifies service no longer exists before attempting new install
+
+```powershell
+# Force cleanup any marker:
+Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
+& cmd.exe /c "sc.exe delete `"$service`""
+Start-Sleep -Seconds 5
+```
+
+*Service Registration Window (NEW - v1.1.3)*:
+- Added "Wait for service registration" task after NSSM install
+- Waits 3 seconds for Windows registry to update
+- Verifies service is visible before next tasks
+- Prevents "service not found" errors
+
+**Files Modified:**
+- `roles/arp_agent/tasks/main.yml`:
+  - Lines 40-76: Simplified Npcap install (removed -Verb RunAs, added diagnostics)
+  - Lines 168-190: NEW task to clean up existing service before install
+  - Lines 229-240: NEW task to wait for service registration
+
+**Expected Output (Success):**
+```
+TASK [arp_agent : Clean up any existing agent service] *** ok: [192.168.0.24]
+[*] Checking for existing service: Windows Network Extension Service (WinNetExtension)
+[+] No existing service found - proceeding with clean install
+
+TASK [arp_agent : Install Agent as a Windows Service via NSSM] *** ok: [192.168.0.24]
+[*] Installing service: Windows Network Extension Service (WinNetExtension)
+[*] Running NSSM install...
+[*] Configuring service properties...
+[+] Service installed successfully: Windows Network Extension Service (WinNetExtension)
+
+TASK [arp_agent : Wait for service registration] *** ok: [192.168.0.24]
+[*] Waiting for service registration...
+[+] Service registered and visible: Windows Network Extension Service (WinNetExtension)
+    Status: Stopped
+    StartType: Automatic
+
+TASK [arp_agent : Start the Agent service] *** ok: [192.168.0.24]
+... service started
+```
+
+**If Npcap Still Fails to Install:**
+- Check installed Npcap manually: `Test-Path 'C:\Program Files\Npcap'`
+- Check registry: `Test-Path 'HKLM:\Software\Npcap'`
+- Try manual install: `C:\ProgramData\WinNetExt\npcap-1.87.exe /S /winpcap_mode=yes /loopback_support=yes`
+- May require system reboot if previous Npcap version present
+- Verify WinRM session has LocalSystem admin context
+
+**If Service Still Shows "Marked for Deletion":**
+- Manual cleanup: `sc.exe delete "Windows Network Extension Service (WinNetExtension)"`
+- Wait 10 seconds: `Start-Sleep -Seconds 10`
+- Reboot system if deletion persists
+
 ### v1.1.2 (March 28, 2026 - Installation Reliability)
 
 **Problem Addressed:**
