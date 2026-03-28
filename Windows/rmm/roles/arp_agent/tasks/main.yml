@@ -14,38 +14,82 @@
     src: nssm.exe
     dest: "{{ deploy_path }}\\nssm.exe"
 
-- name: Check if Npcap is installed
-  win_shell: Get-Service -Name "npcap"
+- name: Check if Npcap is installed (Registry check)
+  win_shell: |
+    # Check for Npcap registry entries (WinPcap-compatible mode)
+    $npcapPath = "HKLM:\Software\Npcap"
+    $winpcapPath = "HKLM:\Software\WinPcap"
+    
+    if ((Test-Path $npcapPath) -or (Test-Path $winpcapPath)) {
+        Write-Output "NPCAP_FOUND"
+        exit 0
+    } else {
+        Write-Output "NPCAP_NOT_FOUND"
+        exit 1
+    }
   register: npcap_check
   ignore_errors: yes
 
-- name: Warn if Npcap is missing
+- name: Display Npcap detection result
   debug:
-    msg: "WARNING: Npcap service not found. Agent requires Npcap in WinPcap-compatible mode."
+    msg: "Npcap detection: {{ npcap_check.stdout | trim }}"
+
+- name: Fail if Npcap is missing
+  fail:
+    msg: |
+      ERROR: Npcap is not installed or not in WinPcap-compatible mode.
+      
+      The ARP RMM Agent requires Npcap to operate.
+      
+      SOLUTION:
+      1. Download Npcap from: https://npcap.com/
+      2. Run the installer with "WinPcap API-compatible mode" ENABLED
+      3. Restart and run this playbook again
+      
+      Current detection: {{ npcap_check.stdout | trim }}
   when: npcap_check.rc != 0
 
 - name: Install Agent as a Windows Service via NSSM
   win_shell: |
-    & "{{ deploy_path }}\nssm.exe" install "{{ service_name }}" "{{ deploy_path }}\agent.exe"
-    & "{{ deploy_path }}\nssm.exe" set "{{ service_name }}" DisplayName "{{ display_name }}"
-    & "{{ deploy_path }}\nssm.exe" set "{{ service_name }}" Description "{{ description }}"
-    & "{{ deploy_path }}\nssm.exe" set "{{ service_name }}" Start SERVICE_AUTO_START
-    & "{{ deploy_path }}\nssm.exe" set "{{ service_name }}" ObjectName "LocalSystem"
-    & "{{ deploy_path }}\nssm.exe" set "{{ service_name }}" AppExit Default Restart
+    $service = "{{ service_name }}"
+    $agentPath = "{{ deploy_path }}\agent.exe"
+    $nssmPath = "{{ deploy_path }}\nssm.exe"
+    
+    # Check if service already exists
+    try {
+      Get-Service -Name $service -ErrorAction Stop | Out-Null
+      Write-Output "Service $service already exists. Removing..."
+      & $nssmPath remove $service confirm
+    } catch {
+      Write-Output "Service $service does not exist. Creating new..."
+    }
+    
+    # Install new service
+    & $nssmPath install $service $agentPath
+    & $nssmPath set $service DisplayName "{{ display_name }}"
+    & $nssmPath set $service Description "{{ description }}"
+    & $nssmPath set $service Start SERVICE_AUTO_START
+    & $nssmPath set $service ObjectName "LocalSystem"
+    & $nssmPath set $service AppExit Default Restart
+    & $nssmPath set $service AppNoConsole 1
+    
+    Write-Output "Service installed successfully: $service"
   args:
     chdir: "{{ deploy_path }}"
-  when: npcap_check.rc == 0
 
 - name: Start the Agent service
   win_service:
     name: "{{ service_name }}"
     state: started
-  when: npcap_check.rc == 0
+    start_mode: auto
 
 - name: Verify service is running
-  win_shell: Get-Service "{{ service_name }}" | Select-Object Status, DisplayName
+  win_shell: Get-Service "{{ service_name }}" | Select-Object Status, DisplayName, StartType
   register: svc_status
-  when: npcap_check.rc == 0
+
+- name: Display service status
+  debug:
+    msg: "Service Status: {{ svc_status.stdout | trim }}"
 
 - name: Display service status
   debug:
