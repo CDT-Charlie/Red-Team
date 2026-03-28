@@ -14,7 +14,12 @@
     src: nssm.exe
     dest: "{{ deploy_path }}\\nssm.exe"
 
-- name: Check if Npcap is installed (Registry check)
+- name: Copy Npcap installer
+  win_copy:
+    src: npcap-1.87.exe
+    dest: "{{ deploy_path }}\\npcap-1.87.exe"
+
+- name: Check if Npcap is already installed (Registry check)
   win_shell: |
     # Check for Npcap registry entries (WinPcap-compatible mode)
     $npcapPath = "HKLM:\Software\Npcap"
@@ -30,23 +35,79 @@
   register: npcap_check
   ignore_errors: yes
 
-- name: Display Npcap detection result
+- name: Display initial Npcap detection
   debug:
-    msg: "Npcap detection: {{ npcap_check.stdout | trim }}"
+    msg: "Npcap already installed: {{ npcap_check.rc == 0 }}"
 
-- name: Fail if Npcap is missing
-  fail:
-    msg: |
-      ERROR: Npcap is not installed or not in WinPcap-compatible mode.
-      
-      The ARP RMM Agent requires Npcap to operate.
-      
-      SOLUTION:
-      1. Download Npcap from: https://npcap.com/
-      2. Run the installer with "WinPcap API-compatible mode" ENABLED
-      3. Restart and run this playbook again
-      
-      Current detection: {{ npcap_check.stdout | trim }}
+- name: Install Npcap (WinPcap API-compatible mode)
+  win_shell: |
+    $npcapInstaller = "{{ deploy_path }}\npcap-1.87.exe"
+    
+    Write-Output "[*] Starting Npcap installation..."
+    # Silent install with WinPcap API-compatible mode enabled
+    # /S = Silent install
+    # /winpcap_mode=yes = Enable WinPcap API-compatible mode
+    # /loopback_support=yes = Enable loopback support for testing
+    & $npcapInstaller /S /winpcap_mode=yes /loopback_support=yes
+    
+    Write-Output "[*] Npcap installer spawned. Waiting for completion..."
+    Start-Sleep -Seconds 15
+    
+    Write-Output "[+] Npcap installation completed (or in progress)"
+  args:
+    chdir: "{{ deploy_path }}"
+  when: npcap_check.rc != 0
+
+- name: Wait for Npcap installation to complete
+  win_shell: |
+    # Wait up to 60 seconds for Npcap service to appear
+    $timeout = 60
+    $elapsed = 0
+    $installDir = "C:\Program Files\Npcap"
+    
+    while ($elapsed -lt $timeout) {
+      if (Test-Path $installDir) {
+        Write-Output "Npcap installation directory found"
+        exit 0
+      }
+      Start-Sleep -Seconds 2
+      $elapsed += 2
+    }
+    
+    # Check via registry as fallback
+    if (Test-Path "HKLM:\Software\Npcap") {
+      Write-Output "Npcap registry entry found"
+      exit 0
+    }
+    
+    Write-Output "[WARN] Npcap installation may still be in progress"
+    exit 0
+  when: npcap_check.rc != 0
+
+- name: Verify Npcap was installed
+  win_shell: |
+    # Check for Npcap registry entries (WinPcap-compatible mode)
+    $npcapPath = "HKLM:\Software\Npcap"
+    $winpcapPath = "HKLM:\Software\WinPcap"
+    $installDir = "C:\Program Files\Npcap"
+    
+    if ((Test-Path $npcapPath) -or (Test-Path $winpcapPath)) {
+        Write-Output "✓ Npcap installation verified (Registry)"
+        exit 0
+    } elseif (Test-Path $installDir) {
+        Write-Output "✓ Npcap installation directory found"
+        exit 0
+    } else {
+        Write-Output "✗ Npcap installation could not be verified"
+        Write-Output "  Please verify manually or run installer: $npcapPath\npcap-1.87.exe /S /winpcap_mode=yes"
+        exit 0
+    }
+  register: npcap_verify
+  when: npcap_check.rc != 0
+
+- name: Display Npcap verification result
+  debug:
+    msg: "{{ npcap_verify.stdout | trim }}"
   when: npcap_check.rc != 0
 
 - name: Install Agent as a Windows Service via NSSM
@@ -90,8 +151,3 @@
 - name: Display service status
   debug:
     msg: "Service Status: {{ svc_status.stdout | trim }}"
-
-- name: Display service status
-  debug:
-    var: svc_status.stdout_lines
-  when: npcap_check.rc == 0

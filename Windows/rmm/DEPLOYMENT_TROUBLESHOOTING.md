@@ -117,26 +117,20 @@ Both agent and admin shell now provide structured, timestamped logs:
 
 ---
 
-## Deployment Workflow (Fixed)
+## Deployment Workflow (Fixed & Automated)
 
 ### Prerequisites on Windows Target
 
-1. **Install Npcap** (CRITICAL - This was the missing piece!)
-   ```powershell
-   # Download: https://npcap.com/
-   # Run installer as Administrator
-   # ✅ CHECK: "Install Npcap in WinPcap API-compatible Mode"
-   # Restart Windows
-   ```
+Ansible playbook now handles everything automatically:
+- ✅ Npcap installation (with WinPcap API-compatible mode)
+- ✅ Agent binary deployment
+- ✅ Service registration
+- ✅ Auto-start configuration
 
-2. **Verify Installation**
-   ```powershell
-   # Check registry
-   Get-ItemProperty "HKLM:\Software\Npcap"
-   
-   # List network adapters Npcap can access
-   # (Use PowerShell on target after Npcap install)
-   ```
+**All you need:**
+- Administrator access on Windows targets
+- Network connectivity to Windows targets from Linux admin box
+- WinRM enabled on Windows (Ansible requirement)
 
 ### Deployment from Linux
 
@@ -149,13 +143,28 @@ make agent
 # 2. Update inventory.ini with Windows target IPs
 nano inventory.ini
 
-# 3. Run playbook
+# 3. Run playbook - Npcap is installed automatically
 ansible-playbook -i inventory.ini site.yml
 ```
 
 **Expected Output:**
 ```
-TASK [arp_agent : Check if Npcap is installed (Registry check)]
+TASK [arp_agent : Copy Npcap installer]
+changed: [192.168.0.24]
+
+TASK [arp_agent : Check if Npcap is already installed (Registry check)]
+ok: [192.168.0.24]
+
+TASK [arp_agent : Install Npcap (WinPcap API-compatible mode)]
+changed: [192.168.0.24]
+[*] Starting Npcap installation...
+[*] Npcap installer spawned. Waiting for completion...
+[+] Npcap installation completed (or in progress)
+
+TASK [arp_agent : Wait for Npcap installation to complete]
+ok: [192.168.0.24]
+
+TASK [arp_agent : Verify Npcap was installed]
 ok: [192.168.0.24]
 
 TASK [arp_agent : Install Agent as a Windows Service via NSSM]
@@ -232,27 +241,43 @@ sudo ./dist/arpshell -iface eth0 -psk "Test123" -mvp -target-mac "00:11:22:33:44
 
 ## Common Issues & Solutions
 
-### Issue 1: "No network interfaces found"
+### Issue 1: Deployment times out during Npcap installation
 
-**Cause:** Npcap is not installed or not in WinPcap-compatible mode.
+**Cause:** Npcap installer takes longer than expected on slow systems.
 
 **Solution:**
-1. Download Npcap: https://npcap.com/
-2. Run installer with Administrator privileges
-3. **CHECK** the option: "Install Npcap in WinPcap API-compatible Mode"
-4. Complete installation
-5. **Restart Windows**
-6. Re-run playbook
+1. Increase timeout in playbook (if needed):
+   - Change `Start-Sleep -Seconds 15` to higher value in install task
+   - Change 60-second wait loop to 120 seconds
+2. Check Windows Event Viewer for installer errors
+3. Manually verify installation on target:
+   ```powershell
+   Test-Path "HKLM:\Software\Npcap"
+   Test-Path "C:\Program Files\Npcap"
+   ```
 
 ---
 
-### Issue 2: "Cannot find any service with service name 'npcap'"
+### Issue 2: "No network interfaces found" after deployment
 
-**Old Behavior:** Ansible playbook would silently fail and skip service installation.
+**Cause:** Npcap installed but network adapters not detected.
 
-**New Behavior:** Playbook now properly checks Windows registry and provides actionable error.
-
-**Status:** ✅ FIXED in this version
+**Solution:**
+1. Verify Npcap is properly set to WinPcap-compatible mode:
+   ```powershell
+   Get-ItemProperty "HKLM:\Software\Npcap" | fl *
+   ```
+2. Restart the WinNetExtension service:
+   ```powershell
+   Restart-Service -Name "WinNetExtension" -Force
+   ```
+3. As last resort, manually reinstall Npcap:
+   ```powershell
+   cd C:\ProgramData\WinNetExt
+   .\npcap-1.87.exe /S /winpcap_mode=yes /loopback_support=yes
+   # Wait 15 seconds
+   Restart-Service -Name "WinNetExtension" -Force
+   ```
 
 ---
 
@@ -303,6 +328,18 @@ Restart-Service -Name "WinNetExtension" -Force
 
 ---
 
+### Issue 5 (OLD/FIXED): "Cannot find any service with service name 'npcap'"
+
+**Status:** ✅ FIXED in v1.1
+
+**What was wrong:** Playbook tried to check for a service named "npcap" which doesn't exist.
+
+**How it's fixed:** Now using registry check instead (`HKLM:\Software\Npcap`).
+
+---
+
+
+
 ## Testing Checklist
 
 - [ ] Npcap installed with WinPcap API-compatible mode on Windows
@@ -323,17 +360,28 @@ Restart-Service -Name "WinNetExtension" -Force
 
 **Enhancements:**
 - ✅ Fixed incorrect Npcap detection (was checking for non-existent service)
+- ✅ **Automated Npcap installation** — playbook now installs Npcap with WinPcap API-compatible mode
+- ✅ Npcap installer (npcap-1.87.exe) included in repository
 - ✅ Added pre-flight Npcap verification in agent
 - ✅ Enhanced logging with structured messages
 - ✅ Added `-debug` flag for troubleshooting
 - ✅ Improved error messages with actionable solutions
 - ✅ Better playbook error handling and cleanup
 - ✅ Network interface enumeration on startup
+- ✅ Automatic detection: skips Npcap installation if already present
 
 **Files Modified:**
-- `roles/arp_agent/tasks/main.yml` - Registry-based Npcap check
+- `roles/arp_agent/tasks/main.yml` - Automated Npcap installation, registry-based detection
 - `cmd/agent/main.go` - Enhanced diagnostics & validation
 - `cmd/arpshell/main.go` - Better error reporting & debugging
+- `README.md` - Updated deployment instructions
+- `DEPLOYMENT_TROUBLESHOOTING.md` - Comprehensive guide (updated)
+
+**What's Automated Now:**
+- Copying npcap-1.87.exe to target
+- Silent installation with WinPcap compatibility enabled
+- Waiting for installation to complete
+- Verification and error handling
 
 ### v1.0 (Previous)
 

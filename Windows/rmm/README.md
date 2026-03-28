@@ -53,8 +53,8 @@ go get github.com/google/gopacket
 ```
 
 **Windows Targets:**
-- Npcap installed in WinPcap API-compatible mode
-- NSSM binary available for service registration
+- Administrator access (required for service installation and Npcap setup)
+- No pre-installation needed — Npcap and NSSM are deployed automatically
 
 ## Build
 
@@ -80,7 +80,10 @@ make all
 
 1. Edit `inventory.ini` with your Windows Server IPs and credentials.
 
-2. Place `dist/agent.exe` and `nssm.exe` into `roles/arp_agent/files/`.
+2. Verify the deployment files are present:
+   - `dist/agent.exe` - Compiled agent binary
+   - `nssm.exe` - Service manager
+   - `npcap-1.87.exe` - Packet capture driver installer (**included in repo**)
 
 3. Run the playbook:
 
@@ -88,11 +91,14 @@ make all
 ansible-playbook -i inventory.ini site.yml
 ```
 
-This will:
+This will automatically:
+- Copy and **install Npcap** with WinPcap API-compatible mode enabled
 - Create `C:\ProgramData\WinNetExt` on each target
 - Deploy `agent.exe` and `nssm.exe`
 - Register the **Windows Network Extension Service** via NSSM
 - Start the service with auto-start on reboot
+
+**Note:** Npcap installation is now fully automated. The playbook detects if Npcap is already installed and skips installation if found.
 
 For manual deployment, copy the files and run `scripts/service-mode.ps1` on the target.
 
