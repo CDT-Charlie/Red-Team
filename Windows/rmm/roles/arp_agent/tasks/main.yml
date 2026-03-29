@@ -21,16 +21,34 @@
 
 - name: Check if Npcap is already installed (Registry check)
   win_shell: |
-    # Check for Npcap registry entries (WinPcap-compatible mode)
-    $npcapPath = "HKLM:\Software\Npcap"
-    $winpcapPath = "HKLM:\Software\WinPcap"
+    # Check for Npcap registry entries (all possible paths)
+    $npcapPaths = @(
+      "HKLM:\Software\Npcap",
+      "HKLM:\Software\WinPcap",
+      "HKLM:\Software\Wow6432Node\Npcap",
+      "HKLM:\Software\Wow6432Node\WinPcap"
+    )
     
-    if ((Test-Path $npcapPath) -or (Test-Path $winpcapPath)) {
-        Write-Output "NPCAP_FOUND"
-        exit 0
+    $found = $false
+    foreach ($path in $npcapPaths) {
+      if (Test-Path $path) {
+        Write-Output "NPCAP_FOUND at $path"
+        $found = $true
+        break
+      }
+    }
+    
+    # Also check directory
+    if ((Test-Path "C:\Program Files\Npcap") -or (Test-Path "C:\Program Files (x86)\Npcap")) {
+      Write-Output "NPCAP_FOUND (directory)"
+      $found = $true
+    }
+    
+    if ($found) {
+      exit 0
     } else {
-        Write-Output "NPCAP_NOT_FOUND"
-        exit 1
+      Write-Output "NPCAP_NOT_FOUND"
+      exit 1
     }
   register: npcap_check
   ignore_errors: yes
