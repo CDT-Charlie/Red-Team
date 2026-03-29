@@ -21,25 +21,9 @@
 
 - name: Check if Npcap is already installed (Simple file check)
   win_shell: |
-    # Check for Npcap installation by looking for actual files
-    $npcapFiles = @(
-      "C:\Program Files\Npcap\npcap.sys",
-      "C:\Program Files\Npcap\npcap.dll",
-      "C:\Program Files\Npcap\npf.sys",
-      "C:\Program Files (x86)\Npcap\npcap.sys",
-      "C:\Program Files (x86)\Npcap\npcap.dll"
-    )
-    
-    $found = $false
-    foreach ($file in $npcapFiles) {
-      if (Test-Path $file) {
-        Write-Output "NPCAP_FOUND - File exists: $file"
-        $found = $true
-        break
-      }
-    }
-    
-    if ($found) {
+    # Just check if the Npcap directory exists
+    if ((Test-Path "C:\Program Files\Npcap") -or (Test-Path "C:\Program Files (x86)\Npcap")) {
+      Write-Output "NPCAP_FOUND"
       exit 0
     } else {
       Write-Output "NPCAP_NOT_FOUND"
