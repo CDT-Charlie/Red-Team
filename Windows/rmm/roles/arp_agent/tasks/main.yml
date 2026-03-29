@@ -31,9 +31,20 @@
 
 - name: Display initial Npcap detection
   debug:
-    msg: "Npcap already installed: {{ npcap_dir_check.stat.exists }})"
+    msg: "Npcap already installed: {{ npcap_dir_check.stat.exists }}"
+
+- name: Fail if Npcap is not installed
+  fail:
+    msg: "ERROR: Npcap is NOT installed at C:\\Program Files\\Npcap on the target system. The agent requires Npcap to function. Please manually install Npcap first, then re-run this playbook. Manual installation steps:\n1. Open PowerShell as Administrator on the target (192.168.0.24)\n2. Run: {{ deploy_path }}\\npcap-1.87.exe /S /winpcap_mode=yes /loopback_support=yes\n3. Wait for installer to complete (2-3 minutes)\n4. Re-run this playbook"
+  when: not npcap_dir_check.stat.exists
+
+- name: Skip Npcap installer (already installed)
+  debug:
+    msg: "Npcap installation skipped - already present at C:\\Program Files\\Npcap"
+  when: npcap_dir_check.stat.exists
 
 - name: Clean up any existing agent service (force removal)
+  when: npcap_dir_check.stat.exists
   win_shell: |
     $service = "{{ service_name }}"
     
@@ -69,6 +80,7 @@
   ignore_errors: yes
 
 - name: Install Agent as a Windows Service via NSSM
+  when: npcap_dir_check.stat.exists
   win_shell: |
     $service = "{{ service_name }}"
     $agentPath = "{{ deploy_path }}\agent.exe"
@@ -99,6 +111,7 @@
     chdir: "{{ deploy_path }}"
 
 - name: Wait for service registration to complete
+  when: npcap_dir_check.stat.exists
   win_shell: |
     Write-Output "[*] Waiting for service registration..."
     Start-Sleep -Seconds 3
@@ -114,6 +127,7 @@
     }
 
 - name: Start the Agent service
+  when: npcap_dir_check.stat.exists
   win_service:
     name: "{{ service_name }}"
     state: started
