@@ -19,29 +19,24 @@
     src: npcap-1.87.exe
     dest: "{{ deploy_path }}\\npcap-1.87.exe"
 
-- name: Check if Npcap is already installed (Registry check)
+- name: Check if Npcap is already installed (Simple file check)
   win_shell: |
-    # Check for Npcap registry entries (all possible paths)
-    $npcapPaths = @(
-      "HKLM:\Software\Npcap",
-      "HKLM:\Software\WinPcap",
-      "HKLM:\Software\Wow6432Node\Npcap",
-      "HKLM:\Software\Wow6432Node\WinPcap"
+    # Check for Npcap installation by looking for actual files
+    $npcapFiles = @(
+      "C:\Program Files\Npcap\npcap.sys",
+      "C:\Program Files\Npcap\npcap.dll",
+      "C:\Program Files\Npcap\npf.sys",
+      "C:\Program Files (x86)\Npcap\npcap.sys",
+      "C:\Program Files (x86)\Npcap\npcap.dll"
     )
     
     $found = $false
-    foreach ($path in $npcapPaths) {
-      if (Test-Path $path) {
-        Write-Output "NPCAP_FOUND at $path"
+    foreach ($file in $npcapFiles) {
+      if (Test-Path $file) {
+        Write-Output "NPCAP_FOUND - File exists: $file"
         $found = $true
         break
       }
-    }
-    
-    # Also check directory
-    if ((Test-Path "C:\Program Files\Npcap") -or (Test-Path "C:\Program Files (x86)\Npcap")) {
-      Write-Output "NPCAP_FOUND (directory)"
-      $found = $true
     }
     
     if ($found) {
