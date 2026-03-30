@@ -10,82 +10,32 @@ import (
 	"strings"
 	"time"
 
-	"arp-rmm/internal/craft"
 	"arp-rmm/internal/fragment"
-	"arp-rmm/internal/mac"
-
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
+	"arp-rmm/internal/transport"
 )
 
 const responseTimeout = 30 * time.Second
 
 func main() {
-	iface := flag.String("iface", "eth0", "Network interface to use")
-	psk := flag.String("psk", "S3cur3_Adm1n_K3y", "Pre-shared key for MAC hopping")
-	mvp := flag.Bool("mvp", false, "MVP mode: use static MACs instead of hopping")
-	targetMAC := flag.String("target-mac", "00:11:22:33:44:55",
-		"Windows agent MAC address (MVP mode filter)")
+	target := flag.String("target", "192.168.0.24:9999", "Agent IP:Port (e.g. 192.168.0.24:9999)")
+	psk := flag.String("psk", "S3cur3_Adm1n_K3y", "Pre-shared key (unused in UDP v2)")
 	debug := flag.Bool("debug", false, "Enable debug output")
 	flag.Parse()
 
 	log.SetFlags(log.Ltime | log.Lshortfile)
-	fmt.Println("=== ARP RMM Admin Shell v1.1 ===")
-
-	// List available interfaces
-	devices, err := pcap.FindAllDevs()
-	if err != nil {
-		log.Fatalf("Failed to enumerate network interfaces: %v", err)
-	}
-	if len(devices) == 0 {
-		log.Fatal("No network interfaces found. Ensure libpcap is installed.")
-	}
-
-	fmt.Println("[+] Available network interfaces:")
-	for i, d := range devices {
-		fmt.Printf("    [%d] %s", i, d.Name)
-		if d.Description != "" {
-			fmt.Printf(" (%s)", d.Description)
-		}
-		fmt.Println()
-	}
-
-	fmt.Printf("\n[*] Opening interface: %s\n", *iface)
-	handle, err := craft.OpenHandle(*iface, true)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[FATAL] Failed to open interface %s: %v\n", *iface, err)
-		fmt.Fprintf(os.Stderr, "[FATAL] Troubleshooting:\n")
-		fmt.Fprintf(os.Stderr, "  1. Verify interface name (use: ip link show)\n")
-		fmt.Fprintf(os.Stderr, "  2. Ensure you have root/sudo privileges\n")
-		fmt.Fprintf(os.Stderr, "  3. Verify libpcap is installed: apt-get install libpcap-dev\n")
-		os.Exit(1)
-	}
-	defer handle.Close()
-
-	if err := handle.SetBPFFilter("arp"); err != nil {
-		log.Fatalf("[FATAL] Failed to set BPF filter: %v", err)
-	}
-
-	reader := bufio.NewReader(os.Stdin)
-	currentSeq := 0
-
-	fmt.Println("=== [ Layer 2 ARP-Shell Ready ] ===")
-	fmt.Printf("[*] Interface: %s\n", *iface)
-	fmt.Printf("[*] MVP Mode: %v\n", *mvp)
-	fmt.Printf("[*] PSK: [configured]\n")
-	if *mvp {
-		fmt.Printf("[*] Target MAC: %s\n", *targetMAC)
-	}
+	fmt.Println("=== UDP RMM Admin Shell v2.0 (Cloud-Ready) ===")
+	fmt.Printf("[*] Target: %s\n", *target)
 	fmt.Println("[*] Type 'quit' to exit\n")
 
+	reader := bufio.NewReader(os.Stdin)
+
 	for {
-		fmt.Print("ARP-Admin> ")
+		fmt.Print("UDP-Admin> ")
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
 
-		if input == "exit" || input == "quit" {
-			fmt.Println("[*] Exiting ARP Shell.")
+		if input == "quit" || input == "exit" {
+			fmt.Println("[*] Goodbye!")
 			break
 		}
 		if input == "" {
@@ -100,30 +50,37 @@ func main() {
 
 		// --- SEND state ---
 		fragments := fragment.FragmentCommand(input)
-		fmt.Printf("[TX] Fragmenting command into %d ARP packet(s)\n", len(fragments))
+		fmt.Printf("[TX] Fragmenting command into %d UDP packet(s)\n", len(fragments))
 		
 		if *debug {
 			fmt.Printf("[DEBUG] Command: \"%s\" (%d bytes)\n", input, len(input))
 		}
 
+		// Parse target IP and port
+		parts := strings.Split(*target, ":")
+		if len(parts) != 2 {
+			fmt.Printf("[!] Invalid target format. Use: IP:PORT (e.g. 192.168.0.24:9999)\n")
+			continue
+		}
+		targetIP := parts[0]
+		var targetPort int
+		_, err := fmt.Sscanf(parts[1], "%d", &targetPort)
+		if err != nil {
+			fmt.Printf("[!] Invalid port: %s\n", parts[1])
+			continue
+		}
+
 		sendErrors := 0
 		for i, frag := range fragments {
-			var srcMAC net.HardwareAddr
-			if *mvp {
-				srcMAC = net.HardwareAddr{0x00, 0x11, 0x22, 0x33, 0x44, 0x55}
-			} else {
-				srcMAC = mac.GenerateHoppedMAC(*psk, currentSeq)
-			}
-
-			if err := craft.SendARPRequest(handle, srcMAC, frag); err != nil {
+			// Fragments are already properly formatted with control byte
+			if err := transport.SendUDP(targetIP, targetPort, frag); err != nil {
 				fmt.Printf("[!] Fragment %d/%d send error: %v\n", i+1, len(fragments), err)
 				sendErrors++
 			} else if *debug {
-				fmt.Printf("[DEBUG] Sent fragment %d/%d (seq=%d, data=%d bytes) from %s\n", 
-					i+1, len(fragments), currentSeq, len(frag), srcMAC.String())
+				fmt.Printf("[DEBUG] Sent fragment %d/%d (%d bytes)\n",
+					i+1, len(fragments), len(frag))
 			}
-			currentSeq++
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(5 * time.Millisecond)
 		}
 
 		if sendErrors > 0 {
@@ -134,113 +91,84 @@ func main() {
 		// --- LISTEN state ---
 		fmt.Println("[*] Waiting for response (max 30 seconds)...")
 		if *debug {
-			fmt.Printf("[DEBUG] Listen mode: MVP=%v, Target MAC=%s\n", *mvp, *targetMAC)
+			fmt.Printf("[DEBUG] Listening on UDP for response from %s...\n", *target)
 		}
-		response := listenForResponse(handle, *psk, *mvp, *targetMAC, &currentSeq, *debug)
+		response := listenForUDPResponse(*psk, *debug)
 
 		// --- DISPLAY state ---
 		fmt.Printf("\n--- RESPONSE ---\n%s\n----------------\n\n", response)
 	}
 }
 
+// listenForUDPResponse listens for UDP response packets and reassembles them
+func listenForUDPResponse(psk string, debug bool) string {
+	// Create a listener on any available UDP port
+	listenerAddr, _ := net.ResolveUDPAddr("udp", ":0")
+	listener, err := net.ListenUDP("udp", listenerAddr)
+	if err != nil {
+		return fmt.Sprintf("[ERROR] Failed to create UDP listener: %v", err)
+	}
+	defer listener.Close()
+
+	if debug {
+		fmt.Printf("[DEBUG] Listening on %s for response\n", listener.LocalAddr().String())
+	}
+
+	deadline := time.Now().Add(responseTimeout)
+	listener.SetDeadline(deadline)
+
+	respBuf := fragment.NewCommandBuffer()
+	fragmentCount := 0
+	packetCount := 0
+
+	for {
+		// Receive UDP packet
+		buf := make([]byte, 4096)
+		n, _, err := listener.ReadFromUDP(buf)
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				if fragmentCount == 0 {
+					return "[TIMEOUT] No response from agent within 30 seconds.\n" +
+						"Verify:\n" +
+						"  1. Agent is running on target\n" +
+						"  2. Agent is listening on port 9999\n" +
+						"  3. Network connectivity exists\n" +
+						"  4. Firewall allows UDP:9999\n" +
+						"  5. Target IP:port is correct\n"
+				}
+				return fmt.Sprintf("[TIMEOUT] Received %d fragments but incomplete\n", fragmentCount)
+			}
+			return fmt.Sprintf("[ERROR] Listen error: %v", err)
+		}
+
+		if n < 1 {
+			continue
+		}
+
+		packetCount++
+		data := buf[:n]
+
+		if debug {
+			fmt.Printf("[DEBUG] RX packet %d: len=%d\n", packetCount, len(data))
+		}
+
+		fragmentCount++
+		
+		// ProcessFragment returns true when the command is complete and ready to reassemble
+		if respBuf.ProcessFragment(data) {
+			result := respBuf.Reassemble()
+			if debug {
+				fmt.Printf("[DEBUG] Response complete (%d UDP packets)\n", packetCount)
+			}
+			return result
+		}
+	}
+}
+
+// DEPRECATED: Old ARP-based listener
 // listenForResponse sniffs for ARP Reply packets from the agent and
 // reassembles the fragmented response. In MVP mode it matches by a static
 // target MAC; in hopping mode it validates against predicted MACs.
 func listenForResponse(handle *pcap.Handle, psk string, mvpMode bool, targetMAC string, seq *int, debug bool) string {
-	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-	respBuf := fragment.NewCommandBuffer()
-	deadline := time.After(responseTimeout)
-	fragmentCount := 0
-	packetsSeen := 0
-	arpPacketsSeen := 0
-
-	for {
-		select {
-		case <-deadline:
-			if fragmentCount == 0 {
-				timeoutMsg := "[TIMEOUT] No response from agent within 30 seconds.\n" +
-					"Verify:\n" +
-					"  1. Agent is running on Windows server\n" +
-					"  2. Agent MAC matches or Npcap MAC hopping is configured\n" +
-					"  3. Network connectivity between admin and agent\n" +
-					"  4. PSK (pre-shared key) is identical on both sides\n"
-				
-				if debug {
-					timeoutMsg += fmt.Sprintf("\n[DEBUG] Packet statistics: %d total packets, %d ARP packets\n", 
-						packetsSeen, arpPacketsSeen)
-				}
-				return timeoutMsg
-			}
-			return fmt.Sprintf("[TIMEOUT] Received %d fragments but response incomplete after 30s", fragmentCount)
-
-		case packet, ok := <-packetSource.Packets():
-			if !ok {
-				return "[ERROR] Packet source closed unexpectedly"
-			}
-			
-			packetsSeen++
-			if debug && packetsSeen % 10 == 0 {
-				fmt.Printf("[DEBUG] Listening... (packets: %d, ARP: %d, frags: %d)\n", 
-					packetsSeen, arpPacketsSeen, fragmentCount)
-			}
-
-			arpLayer := packet.Layer(layers.LayerTypeARP)
-			if arpLayer == nil {
-				continue
-			}
-			
-			arpPacketsSeen++
-			arp := arpLayer.(*layers.ARP)
-
-			if arp.Operation != layers.ARPReply {
-				if debug && arp.Operation == layers.ARPRequest {
-					fmt.Printf("[DEBUG] Ignoring ARP Request\n")
-				}
-				continue
-			}
-
-			srcMAC := net.HardwareAddr(arp.SourceHwAddress).String()
-
-			if !mvpMode {
-				expected := mac.PredictNextMAC(psk, *seq)
-				if srcMAC != expected {
-					if debug {
-						fmt.Printf("[DEBUG] MAC mismatch: got %s, expected %s\n", srcMAC, expected)
-					}
-					continue
-				}
-			} else if srcMAC != targetMAC {
-				if debug {
-					fmt.Printf("[DEBUG] MVP: Rejected packet from %s (target: %s)\n", srcMAC, targetMAC)
-				}
-				continue
-			}
-			
-			if debug {
-				fmt.Printf("[DEBUG] Valid ARP Reply from %s\n", srcMAC)
-			}
-
-			spa := arp.SourceProtAddress
-			if len(spa) < 4 {
-				fmt.Printf("[WARN] Invalid SPA length: %d\n", len(spa))
-				continue
-			}
-
-			seqID := int(spa[0] & fragment.SeqIDMask)
-			moreFragments := (spa[0] & 0x80) != 0
-			fragmentCount++
-
-			if debug {
-				fmt.Printf("[DEBUG] RX fragment seq=%d more=%v from MAC %s\n", seqID, moreFragments, srcMAC)
-			}
-
-			*seq++
-
-			if respBuf.ProcessFragment(spa) {
-				result := respBuf.Reassemble()
-				fmt.Printf("[RX] Response complete (%d fragments received)\n", fragmentCount)
-				return result
-			}
-		}
-	}
+	return "[DEPRECATED] Use UDP-based transport instead"
 }

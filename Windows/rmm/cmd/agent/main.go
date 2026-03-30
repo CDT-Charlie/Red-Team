@@ -2,20 +2,13 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net"
-	"os"
 	"time"
 
-	"arp-rmm/internal/craft"
 	"arp-rmm/internal/execution"
 	"arp-rmm/internal/fragment"
-	"arp-rmm/internal/mac"
-
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
+	"arp-rmm/internal/transport"
 )
 
 func init() {
@@ -31,216 +24,103 @@ func init() {
 	}
 }
 
-// NpcapError provides detailed Npcap troubleshooting information
-type NpcapError struct {
-	Message string
-	Details string
-}
 
-func (e *NpcapError) Error() string {
-	return e.Message + ": " + e.Details
-}
-
-// verifyNpcapAvailable checks if Npcap is properly installed and accessible
-func verifyNpcapAvailable() error {
-	devices, err := pcap.FindAllDevs()
-	if err != nil {
-		return &NpcapError{
-			Message: "Failed to enumerate network devices",
-			Details: fmt.Sprintf("pcap.FindAllDevs() error: %v. This usually means Npcap is not installed.", err),
-		}
-	}
-
-	if len(devices) == 0 {
-		return &NpcapError{
-			Message: "No network interfaces detected by Npcap",
-			Details: "Npcap may not be installed or not in WinPcap-compatible mode",
-		}
-	}
-
-	// Log available devices for debugging
-	log.Println("[DEBUG] Npcap enumeration successful. Available devices:")
-	for i, device := range devices {
-		log.Printf("[DEBUG]   [%d] %s", i, device.Name)
-		if device.Description != "" {
-			log.Printf("[DEBUG]       Description: %s", device.Description)
-		}
-		for j, addr := range device.Addresses {
-			log.Printf("[DEBUG]       Address[%d]: %s", j, addr.IP.String())
-		}
-	}
-
-	return nil
-}
+// No additional helper functions needed for UDP transport
 
 func main() {
-	iface := flag.String("iface", "", "Network interface to bind (e.g. \\Device\\NPF_{GUID})")
-	psk := flag.String("psk", "S3cur3_Adm1n_K3y", "Pre-shared key for MAC hopping")
-	mvp := flag.Bool("mvp", false, "MVP mode: accept all ARP traffic (no MAC hopping validation)")
-	adminMAC := flag.String("admin-mac", "", "Admin MAC address filter (MVP mode, e.g. 00:11:22:33:44:55)")
-	debug := flag.Bool("debug", false, "Enable debug output for troubleshooting")
+	port := flag.Int("port", 9999, "UDP port to listen on")
+	psk := flag.String("psk", "S3cur3_Adm1n_K3y", "Pre-shared key (unused in UDP v2)")
+	debug := flag.Bool("debug", false, "Enable debug output")
 	flag.Parse()
 
-	log.Println("=== ARP RMM Agent v1.1 (Enhanced Diagnostics) ===")
-	log.Printf("Debug mode: %v | MVP mode: %v", *debug, *mvp)
+	log.Println("=== UDP RMM Agent v2.0 (Cloud-Ready) ===")
+	log.Printf("[*] Starting UDP listener on port %d", *port)
 
-	// Verify Npcap availability before proceeding
-	log.Println("[*] Verifying Npcap installation...")
-	if err := verifyNpcapAvailable(); err != nil {
-		log.Fatalf(
-			"[FATAL] Npcap verification failed: %v\n\n"+
-				"TROUBLESHOOTING:\n"+
-				"1. Ensure Npcap is installed from https://npcap.com/\n"+
-				"2. During installation, enable 'WinPcap API-compatible mode'\n"+
-				"3. Run this agent as Administrator\n"+
-				"4. If already installed, try restarting your system\n\n"+
-				"Installation instructions:\n"+
-				"  - Download Npcap installer from https://npcap.com/\n"+
-				"  - Run installer with Administrator privileges\n"+
-				"  - Check option: 'Install Npcap in WinPcap API-compatible Mode'\n"+
-				"  - Complete installation and restart\n",
-			err)
-	}
-
-	log.Println("[+] Npcap verification complete")
-
-	if *iface == "" {
-		log.Println("[*] No interface specified, auto-detecting...")
-		devices, err := pcap.FindAllDevs()
-		if err != nil || len(devices) == 0 {
-			log.Fatal("[FATAL] No network interfaces found. Specify -iface flag or verify Npcap installation.")
-		}
-		*iface = devices[0].Name
-		log.Printf("[+] Auto-selected interface: %s", *iface)
-	} else {
-		log.Printf("[+] Using specified interface: %s", *iface)
-	}
-
-	log.Printf("[*] Opening handle on interface: %s", *iface)
-	handle, err := craft.OpenHandle(*iface, true)
+	// Listen on UDP port
+	conn, err := transport.ListenUDP(*port)
 	if err != nil {
-		log.Fatalf(
-			"[FATAL] Failed to open interface %s: %v\n\n"+
-				"TROUBLESHOOTING:\n"+
-				"1. Verify Npcap is installed with WinPcap-compatible mode\n"+
-				"2. Check interface name is correct (format: \\Device\\NPF_{GUID})\n"+
-				"3. Ensure you're running as Administrator\n"+
-				"4. Verify network adapter is connected and enabled\n"+
-				"5. Try: Get-NetAdapter -Physical in PowerShell to list interfaces\n",
-			*iface, err)
+		log.Fatalf("[FATAL] Failed to listen: %v", err)
 	}
-	defer handle.Close()
+	defer conn.Close()
 
-	log.Println("[*] Setting BPF filter for ARP traffic...")
-	if err := handle.SetBPFFilter("arp"); err != nil {
-		log.Fatalf("[FATAL] Failed to set BPF filter: %v", err)
-	}
+	log.Printf("[+] Listening on 0.0.0.0:%d for incoming commands", *port)
 
-	log.Println("=== ARP RMM Agent Ready for Incoming Commands ===")
-	log.Printf("Interface: %s", *iface)
-	log.Printf("MVP Mode: %v", *mvp)
-	log.Printf("PSK: [configured]")
-	if *adminMAC != "" {
-		log.Printf("Admin MAC Filter: %s (MVP mode)", *adminMAC)
-	}
-
-	currentSeq := 0
 	cmdBuf := fragment.NewCommandBuffer()
-	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+	var adminAddr *net.UDPAddr
 
-	log.Println("[*] Listening for ARP commands...")
-
-	for packet := range packetSource.Packets() {
-		arpLayer := packet.Layer(layers.LayerTypeARP)
-		if arpLayer == nil {
+	for {
+		// Receive UDP packet with 5-second timeout
+		data, remoteAddr, err := transport.RecvUDPWithTimeout(conn, 5*time.Second)
+		if err != nil {
+			if err, ok := err.(net.Error); ok && err.Timeout() {
+				continue // Timeout is normal, keep listening
+			}
+			log.Printf("[!] Receive error: %v", err)
 			continue
 		}
-		arp := arpLayer.(*layers.ARP)
 
-		if arp.Operation != layers.ARPRequest {
+		if len(data) < 1 {
 			continue
 		}
 
-		srcMAC := net.HardwareAddr(arp.SourceHwAddress).String()
+		// Parse fragment header (byte 0: [more_frags(1) | seq(7)])
+		adminAddr = remoteAddr
+		seqID := int(data[0] & fragment.SeqIDMask)
+		moreFrags := (data[0] & 0x80) != 0
+		payload := data[1:]
 
 		if *debug {
-			log.Printf("[DEBUG] ARP Request from MAC: %s", srcMAC)
+			log.Printf("[DEBUG] RX from %s: seq=%d, more=%v, len=%d", remoteAddr.IP.String(), seqID, moreFrags, len(payload))
 		}
 
-		if !*mvp {
-			expected := mac.PredictNextMAC(*psk, currentSeq)
-			if srcMAC != expected {
-				if *debug {
-					log.Printf("[DEBUG] MAC validation failed: got=%s expected=%s", srcMAC, expected)
-				}
-				continue
-			}
-		} else if *adminMAC != "" && srcMAC != *adminMAC {
+		// Add fragment to buffer
+		cmdBuf.Add(seqID, payload, moreFrags)
+
+		// Check if command is complete
+		if !cmdBuf.IsComplete() {
 			if *debug {
-				log.Printf("[DEBUG] Admin MAC filter: rejected %s (expected %s)", srcMAC, *adminMAC)
+				log.Printf("[DEBUG] Waiting for more fragments... (current seq=%d)", seqID)
 			}
 			continue
 		}
 
-		spa := arp.SourceProtAddress
-		if len(spa) < 4 {
-			log.Printf("[WARN] Invalid SPA length: %d (expected 4)", len(spa))
-			continue
-		}
-
-		seqID := int(spa[0] & fragment.SeqIDMask)
-		moreFragments := (spa[0] & 0x80) != 0
-
-		log.Printf("[RX] Fragment seq=%d more=%v ctrl=0x%02x data=[%02x %02x %02x]",
-			seqID, moreFragments, spa[0], spa[1], spa[2], spa[3])
-
-		ready := cmdBuf.ProcessFragment(spa)
-		currentSeq++
-
-		if !ready {
-			if *debug {
-				log.Printf("[DEBUG] Buffering fragment, waiting for more... (current seq=%d)", seqID)
-			}
-			continue
-		}
-
-		command := cmdBuf.Reassemble()
-		cmdBuf.Reset()
-		log.Printf("[OK] Reassembled complete command: %q (%d bytes)", command, len(command))
+		// Command is complete, execute it
+		cmd := string(cmdBuf.GetData())
+		log.Printf("[+] Received complete command: %q", cmd)
 
 		var response string
-		if command == "HELO" {
+		if cmd == "HELO" {
 			response = "READY"
-			log.Println("[*] Handshake received: HELO -> READY")
+			log.Println("[*] Handshake: HELO -> READY")
 		} else {
-			log.Printf("[*] Routing command for execution: %s", command)
-			response = execution.RouteCommand(command)
-			log.Printf("[OK] Command executed successfully (%d bytes response)", len(response))
+			log.Printf("[*] Executing: %s", cmd)
+			response = execution.RouteCommand(cmd)
+			log.Printf("[OK] Execution complete (%d bytes)", len(response))
 		}
 
-		respFrags := fragment.FragmentCommand(response)
-		log.Printf("[TX] Fragmenting response into %d ARP packets", len(respFrags))
+		// Fragment response
+		responseFrags := fragment.FragmentCommand(response)
+		log.Printf("[TX] Sending %d response fragment(s) to %s", len(responseFrags), adminAddr.IP.String())
 
-		for i, frag := range respFrags {
-			var respMAC net.HardwareAddr
-			if *mvp {
-				respMAC = net.HardwareAddr{0x00, 0x11, 0x22, 0x33, 0x44, 0x55}
-			} else {
-				respMAC = mac.GenerateHoppedMAC(*psk, currentSeq)
+		// Send each response fragment
+		for i, respFrag := range responseFrags {
+			respData := make([]byte, len(respFrag)+1)
+			respData[0] = byte(i)
+			if i < len(responseFrags)-1 {
+				respData[0] |= 0x80 // Set more-fragments bit
 			}
+			copy(respData[1:], respFrag)
 
-			if err := craft.SendARPReply(handle, respMAC, frag); err != nil {
-				log.Printf("[ERR] Failed to send fragment %d/%d: %v", i+1, len(respFrags), err)
-			} else if *debug {
-				log.Printf("[DEBUG] Sent fragment %d/%d from MAC %s", i+1, len(respFrags), respMAC.String())
+			if adminAddr != nil {
+				if err := transport.SendUDPToAddr(conn, adminAddr, respData); err != nil {
+					log.Printf("[!] Failed to send fragment %d: %v", i+1, err)
+				} else if *debug {
+					log.Printf("[DEBUG] TX fragment %d/%d (%d bytes)", i+1, len(responseFrags), len(respData))
+				}
 			}
-			currentSeq++
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(5 * time.Millisecond)
 		}
 
-		log.Println("[*] Response transmission complete. Waiting for next command...")
+		cmdBuf = fragment.NewCommandBuffer()
+		log.Println("[*] Ready for next command")
 	}
-
-	log.Println("[*] Packet capture loop ended (shutting down)")
-	os.Exit(0)
-}
