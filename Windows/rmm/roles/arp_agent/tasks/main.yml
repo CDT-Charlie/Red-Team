@@ -101,6 +101,7 @@
       & $nssmPath set $service ObjectName "LocalSystem"
       & $nssmPath set $service AppExit Default Restart
       & $nssmPath set $service AppNoConsole 1
+      & $nssmPath set $service AppParameters "-psk S3cur3_Adm1n_K3y -mvp"
       
       Write-Output "[+] Service installed successfully: $service"
     } catch {
