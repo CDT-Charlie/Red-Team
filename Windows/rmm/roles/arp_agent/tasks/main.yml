@@ -27,7 +27,7 @@
 - name: Set Npcap check result
   set_fact:
     npcap_check:
-      rc: "{% if npcap_dir_check.stat.exists %}0{% else %}1{% endif %}"
+      rc: "{{ 0 if npcap_dir_check.stat.exists else 1 }}"
 
 - name: Display initial Npcap detection
   debug:
