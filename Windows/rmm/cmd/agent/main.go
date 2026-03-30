@@ -21,6 +21,14 @@ import (
 func init() {
 	// Configure structured logging with timestamps
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	
+	// When running as a Windows service, write logs to file
+	// This enables debugging without console output
+	logPath := "C:\\ProgramData\\WinNetExt\\agent.log"
+	if logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666); err == nil {
+		log.SetOutput(logFile)
+		log.Println("=== AGENT LOG STARTED ===")
+	}
 }
 
 // NpcapError provides detailed Npcap troubleshooting information

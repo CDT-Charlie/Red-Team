@@ -101,6 +101,10 @@ func main() {
 		// --- SEND state ---
 		fragments := fragment.FragmentCommand(input)
 		fmt.Printf("[TX] Fragmenting command into %d ARP packet(s)\n", len(fragments))
+		
+		if *debug {
+			fmt.Printf("[DEBUG] Command: \"%s\" (%d bytes)\n", input, len(input))
+		}
 
 		sendErrors := 0
 		for i, frag := range fragments {
@@ -115,7 +119,8 @@ func main() {
 				fmt.Printf("[!] Fragment %d/%d send error: %v\n", i+1, len(fragments), err)
 				sendErrors++
 			} else if *debug {
-				fmt.Printf("[DEBUG] Sent fragment %d/%d from MAC %s\n", i+1, len(fragments), srcMAC.String())
+				fmt.Printf("[DEBUG] Sent fragment %d/%d (seq=%d, data=%d bytes) from %s\n", 
+					i+1, len(fragments), currentSeq, len(frag), srcMAC.String())
 			}
 			currentSeq++
 			time.Sleep(10 * time.Millisecond)
@@ -128,6 +133,9 @@ func main() {
 
 		// --- LISTEN state ---
 		fmt.Println("[*] Waiting for response (max 30 seconds)...")
+		if *debug {
+			fmt.Printf("[DEBUG] Listen mode: MVP=%v, Target MAC=%s\n", *mvp, *targetMAC)
+		}
 		response := listenForResponse(handle, *psk, *mvp, *targetMAC, &currentSeq, *debug)
 
 		// --- DISPLAY state ---
@@ -143,17 +151,25 @@ func listenForResponse(handle *pcap.Handle, psk string, mvpMode bool, targetMAC 
 	respBuf := fragment.NewCommandBuffer()
 	deadline := time.After(responseTimeout)
 	fragmentCount := 0
+	packetsSeen := 0
+	arpPacketsSeen := 0
 
 	for {
 		select {
 		case <-deadline:
 			if fragmentCount == 0 {
-				return "[TIMEOUT] No response from agent within 30 seconds.\n" +
+				timeoutMsg := "[TIMEOUT] No response from agent within 30 seconds.\n" +
 					"Verify:\n" +
 					"  1. Agent is running on Windows server\n" +
 					"  2. Agent MAC matches or Npcap MAC hopping is configured\n" +
 					"  3. Network connectivity between admin and agent\n" +
-					"  4. PSK (pre-shared key) is identical on both sides"
+					"  4. PSK (pre-shared key) is identical on both sides\n"
+				
+				if debug {
+					timeoutMsg += fmt.Sprintf("\n[DEBUG] Packet statistics: %d total packets, %d ARP packets\n", 
+						packetsSeen, arpPacketsSeen)
+				}
+				return timeoutMsg
 			}
 			return fmt.Sprintf("[TIMEOUT] Received %d fragments but response incomplete after 30s", fragmentCount)
 
@@ -161,14 +177,25 @@ func listenForResponse(handle *pcap.Handle, psk string, mvpMode bool, targetMAC 
 			if !ok {
 				return "[ERROR] Packet source closed unexpectedly"
 			}
+			
+			packetsSeen++
+			if debug && packetsSeen % 10 == 0 {
+				fmt.Printf("[DEBUG] Listening... (packets: %d, ARP: %d, frags: %d)\n", 
+					packetsSeen, arpPacketsSeen, fragmentCount)
+			}
 
 			arpLayer := packet.Layer(layers.LayerTypeARP)
 			if arpLayer == nil {
 				continue
 			}
+			
+			arpPacketsSeen++
 			arp := arpLayer.(*layers.ARP)
 
 			if arp.Operation != layers.ARPReply {
+				if debug && arp.Operation == layers.ARPRequest {
+					fmt.Printf("[DEBUG] Ignoring ARP Request\n")
+				}
 				continue
 			}
 
@@ -184,9 +211,13 @@ func listenForResponse(handle *pcap.Handle, psk string, mvpMode bool, targetMAC 
 				}
 			} else if srcMAC != targetMAC {
 				if debug {
-					fmt.Printf("[DEBUG] Rejected SPA from %s (target: %s)\n", srcMAC, targetMAC)
+					fmt.Printf("[DEBUG] MVP: Rejected packet from %s (target: %s)\n", srcMAC, targetMAC)
 				}
 				continue
+			}
+			
+			if debug {
+				fmt.Printf("[DEBUG] Valid ARP Reply from %s\n", srcMAC)
 			}
 
 			spa := arp.SourceProtAddress

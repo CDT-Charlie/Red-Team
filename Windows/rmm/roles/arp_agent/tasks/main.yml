@@ -101,7 +101,6 @@
       & $nssmPath set $service ObjectName "LocalSystem"
       & $nssmPath set $service AppExit Default Restart
       & $nssmPath set $service AppNoConsole 1
-      & $nssmPath set $service AppParameters "-psk S3cur3_Adm1n_K3y -mvp"
       
       Write-Output "[+] Service installed successfully: $service"
     } catch {
@@ -141,3 +140,212 @@
 - name: Display service status
   debug:
     msg: "Service Status: {{ svc_status.stdout | trim }}"
+
+# ========== COMPREHENSIVE DEBUGGING ==========
+
+- name: Check if Agent process is running
+  when: npcap_dir_check.stat.exists
+  win_shell: |
+    $proc = Get-Process -Name "agent" -ErrorAction SilentlyContinue
+    if ($proc) {
+      Write-Output "[+] Agent process is RUNNING"
+      Write-Output "    Process ID: $($proc.Id)"
+      Write-Output "    Memory (MB): $($proc.WorkingSet / 1MB -as [int])"
+      Write-Output "    Started: $($proc.StartTime)"
+    } else {
+      Write-Output "[!] AGENT PROCESS NOT FOUND - This is the problem!"
+      Write-Output ""
+      Write-Output "[DEBUG] Checking Service status..."
+      $svc = Get-Service "{{ service_name }}" -ErrorAction SilentlyContinue
+      Write-Output "    Service Status: $($svc.Status)"
+      Write-Output "    Start Type: $($svc.StartType)"
+      
+      Write-Output ""
+      Write-Output "[DEBUG] Checking for agent.exe file..."
+      $agentPath = "{{ deploy_path }}\agent.exe"
+      if (Test-Path $agentPath) {
+        Write-Output "    [+] Binary exists: $agentPath"
+      } else {
+        Write-Output "    [!] Binary NOT FOUND: $agentPath"
+      }
+      
+      Write-Output ""
+      Write-Output "[DEBUG] Recent Service errors (last 20 lines)..."
+      $events = Get-EventLog -LogName System -Source "NSSM" -Newest 20 -ErrorAction SilentlyContinue
+      if ($events) {
+        $events | ForEach-Object { Write-Output "    $($_.TimeGenerated): $($_.Message)" }
+      } else {
+        Write-Output "    No NSSM events found in System log"
+      }
+    }
+  register: agent_check
+
+- name: Display Agent process check
+  debug:
+    msg: "{{ agent_check.stdout }}"
+
+- name: Verify Npcap is loaded
+  when: npcap_dir_check.stat.exists
+  win_shell: |
+    Write-Output "[*] Checking Npcap status..."
+    
+    # Check registry for Npcap installation
+    $regPath = "HKLM:\Software\Wow6432Node\Npcap"
+    if (Test-Path $regPath) {
+      Write-Output "[+] Npcap registry key found at 32-bit hive"
+      $version = (Get-ItemProperty $regPath -Name "Version" -ErrorAction SilentlyContinue).Version
+      if ($version) {
+        Write-Output "    Version: $version"
+      }
+    } else {
+      Write-Output "[!] Npcap registry key NOT found at 32-bit hive"
+    }
+    
+    Write-Output ""
+    Write-Output "[*] Checking Npcap driver..."
+    $devices = Get-PnpDevice -Class "Net" -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "Npcap" }
+    if ($devices) {
+      foreach ($device in $devices) {
+        Write-Output "[+] Found: $($device.Name)"
+        Write-Output "    Status: $($device.Status)"
+      }
+    } else {
+      Write-Output "[!] No Npcap devices found in Device Manager"
+    }
+    
+    Write-Output ""
+    Write-Output "[*] Checking Network Adapters (for interface identification)..."
+    Get-NetAdapter -ErrorAction SilentlyContinue | ForEach-Object {
+      Write-Output "    - $($_.Name) [$($_.MacAddress)] - Status: $($_.Status)"
+    }
+  register: npcap_check
+
+- name: Display Npcap verification
+  debug:
+    msg: "{{ npcap_check.stdout }}"
+
+- name: Verify agent binary is executable
+  when: npcap_dir_check.stat.exists
+  win_shell: |
+    $agentPath = "{{ deploy_path }}\agent.exe"
+    
+    Write-Output "[*] Checking agent.exe file properties..."
+    if (Test-Path $agentPath) {
+      $file = Get-Item $agentPath
+      Write-Output "[+] Binary found: $agentPath"
+      Write-Output "    Size: $($file.Length) bytes"
+      Write-Output "    Created: $($file.CreationTime)"
+      Write-Output "    Modified: $($file.LastWriteTime)"
+      
+      # Try to get file version info
+      try {
+        $versionInfo = $file.VersionInfo
+        Write-Output "    Product: $($versionInfo.ProductName)"
+        Write-Output "    Version: $($versionInfo.FileVersion)"
+      } catch {
+        Write-Output "    [DEBUG] Could not read version info: $_"
+      }
+      
+      # Try a dry-run execution to check for runtime errors
+      Write-Output ""
+      Write-Output "[*] Testing agent.exe execution (help flag)..."
+      try {
+        $result = & $agentPath -h 2>&1 | Out-String
+        Write-Output "[+] Agent binary is executable"
+        Write-Output "    Output: $result"
+      } catch {
+        Write-Output "[!] Error attempting to run agent.exe:"
+        Write-Output "    $_"
+      }
+    } else {
+      Write-Output "[!] Agent binary NOT FOUND at: $agentPath"
+    }
+  register: binary_check
+
+- name: Display binary verification
+  debug:
+    msg: "{{ binary_check.stdout }}"
+
+- name: Check Windows Firewall rules
+  when: npcap_dir_check.stat.exists
+  win_shell: |
+    Write-Output "[*] Checking Windows Firewall rules for ARP..."
+    Write-Output "[DEBUG] Note: ARP operates at Layer 2 and shouldn't be blocked by Layer 3/4 firewall"
+    Write-Output ""
+    
+    Write-Output "[*] Checking if Firewall is enabled..."
+    $fwProfile = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+    $fwProfile | ForEach-Object {
+      Write-Output "    $_`: Enabled=$($_.Enabled)"
+    }
+    
+    Write-Output ""
+    Write-Output "[*] Checking for agent-related firewall rules..."
+    $rules = Get-NetFirewallRule -DisplayName "*agent*" -ErrorAction SilentlyContinue
+    if ($rules) {
+      $rules | ForEach-Object {
+        Write-Output "    - $($_.DisplayName): Direction=$($_.Direction), Action=$($_.Action)"
+      }
+    } else {
+      Write-Output "    No agent-specific firewall rules found (this may be OK for Layer 2)"
+    }
+  register: firewall_check
+
+- name: Display Firewall status
+  debug:
+    msg: "{{ firewall_check.stdout }}"
+
+- name: Capture recent System and Application logs
+  when: npcap_dir_check.stat.exists
+  win_shell: |
+    Write-Output "[*] Last 10 Application errors (if any)..."
+    $appEvents = Get-EventLog -LogName Application -EntryType Error -Newest 10 -ErrorAction SilentlyContinue
+    if ($appEvents) {
+      $appEvents | ForEach-Object { Write-Output "    [$($_.TimeGenerated)] $($_.Source): $($_.Message)" }
+    } else {
+      Write-Output "    No recent Application errors"
+    }
+    
+    Write-Output ""
+    Write-Output "[*] Last 10 System errors (if any)..."
+    $sysEvents = Get-EventLog -LogName System -EntryType Error -Newest 10 -ErrorAction SilentlyContinue
+    if ($sysEvents) {
+      $sysEvents | ForEach-Object { Write-Output "    [$($_.TimeGenerated)] $($_.Source): $($_.Message)" }
+    } else {
+      Write-Output "    No recent System errors"
+    }
+  register: logs_check
+
+- name: Display Event logs
+  debug:
+    msg: "{{ logs_check.stdout }}"
+
+- name: Generate debugging checklist
+  debug:
+    msg: |
+      
+      === DEBUGGING CHECKLIST ===
+      
+      If agent.exe is NOT running:
+        1. Check Event logs above for critical errors
+        2. Manually try: & "{{ deploy_path }}\agent.exe" -mvp
+        3. Check if it requires specific Npcap interface parameter
+        4. Verify Npcap installation: {{ deploy_path }}\npcap-1.87.exe /check_install
+      
+      If agent.exe IS running but no response from arpshell:
+        1. Verify network connectivity on both sides
+        2. On Linux admin: sudo tcpdump -i eth1 arp
+        3. On Windows terminal: sudo Get-NetAdapter (see available interfaces)
+        4. Check if arpshell target MAC matches Windows adapter MAC
+        5. Try: arpshell with -mvp flag (more verbose)
+      
+      For Npcap issues:
+        1. Try manual installation: {{ deploy_path }}\npcap-1.87.exe
+        2. Verify registry at: HKLM:\Software\Wow6432Node\Npcap
+        3. Check Device Manager for NPF driver status
+      
+      Next steps:
+        1. Review output above for [!] errors
+        2. Check if process/binary/Npcap issues are present
+        3. Implement -verbose flag in agent code for runtime debugging
+        4. Review agent.exe source for interface auto-selection logic

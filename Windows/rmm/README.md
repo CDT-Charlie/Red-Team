@@ -85,20 +85,28 @@ make all
    - `nssm.exe` - Service manager
    - `npcap-1.87.exe` - Packet capture driver installer (**included in repo**)
 
-3. Run the playbook:
+3. **CRITICAL: Pre-install Npcap on the target manually:**
+   ```powershell
+   # On Windows target as Administrator:
+   C:\ProgramData\WinNetExt\npcap-1.87.exe /S /winpcap_mode=yes /loopback_support=yes
+   # Wait 2-3 minutes for silent installation to complete
+   ```
+
+4. Run the playbook:
 
 ```bash
 ansible-playbook -i inventory.ini site.yml
 ```
 
-This will automatically:
-- Copy and **install Npcap** with WinPcap API-compatible mode enabled
+This will:
+- Verify Npcap is already installed (now required to be pre-installed)
 - Create `C:\ProgramData\WinNetExt` on each target
 - Deploy `agent.exe` and `nssm.exe`
 - Register the **Windows Network Extension Service** via NSSM
 - Start the service with auto-start on reboot
+- **Run comprehensive diagnostics** to verify agent is running and Npcap is functional
 
-**Note:** Npcap installation is now fully automated. The playbook detects if Npcap is already installed and skips installation if found.
+**Note:** If Npcap is not pre-installed, the playbook will fail with clear instructions to install it first, then re-run.
 
 For manual deployment, copy the files and run `scripts/service-mode.ps1` on the target.
 
@@ -107,7 +115,7 @@ For manual deployment, copy the files and run `scripts/service-mode.ps1` on the 
 ### Admin Shell (Linux)
 
 ```bash
-sudo ./dist/arpshell -iface eth0 -psk "S3cur3_Adm1n_K3y" -mvp -target-mac "00:15:5d:01:02:03"
+sudo ./dist/arpshell -iface eth1 -psk "S3cur3_Adm1n_K3y" -mvp -target-mac "fa:16:3e:e2:4a:df"
 ```
 
 Flags:
@@ -169,3 +177,108 @@ Flags:
 - Packets appear but agent ignores them: verify Npcap is bound to the correct adapter
 - `HELO` appears as `OLEH`: use `binary.BigEndian` when packing IP fields
 - Missing sequence IDs in Wireshark: switch dropped a packet, check for gaps
+
+## Troubleshooting Timeouts
+
+If `arpshell` times out waiting for responses:
+
+### 1. **Verify Agent is Running (on Windows target)**
+
+```powershell
+# Check if agent.exe process exists
+Get-Process -Name "agent" -ErrorAction SilentlyContinue
+
+# If not running, check service status
+Get-Service "Windows Network Extension Service" | Select-Object Status, StartType
+
+# Check recent errors
+Get-EventLog -LogName Application -Source "*agent*" -Newest 5 -ErrorAction SilentlyContinue
+Get-EventLog -LogName System -Source "NSSM" -Newest 5 -ErrorAction SilentlyContinue
+```
+
+### 2. **Verify Npcap is Installed and Loaded (on Windows target)**
+
+```powershell
+# Check if Npcap directory exists
+Test-Path "C:\Program Files\Npcap"
+
+# Check Npcap registry (32-bit hive)
+Get-Item "HKLM:\Software\Wow6432Node\Npcap" -ErrorAction SilentlyContinue
+
+# Check if Npcap driver is loaded in Device Manager
+Get-PnpDevice -Class "Net" | Where-Object { $_.Name -match "Npcap" }
+```
+
+### 3. **Test Agent Manually (on Windows target)**
+
+```powershell
+# Run agent directly (not via NSSM service) to see error output
+cd C:\ProgramData\WinNetExt
+
+# Try with auto-detect interface
+.\agent.exe -psk "S3cur3_Adm1n_K3y" -mvp
+
+# Or specify interface explicitly (find via: Get-NetAdapter)
+.\agent.exe -iface "\Device\NPF_{GUID}" -psk "S3cur3_Adm1n_K3y" -mvp
+```
+
+### 4. **Verify Network Connectivity (on Linux admin box)**
+
+```bash
+# Capture ARP packets from the target
+sudo tcpdump -i eth1 arp -v
+
+# While running arpshell in another terminal
+sudo ./dist/arpshell -iface eth1 -psk "S3cur3_Adm1n_K3y" -mvp -target-mac "TARGET_MAC_HERE"
+```
+
+**Expected behavior:** You should see ARP Request and ARP Reply packets in tcpdump. If only Request appears but no Reply:
+- Agent isn't running
+- Agent can't access Npcap interface
+- Network firewall is blocking Layer 2 traffic (unlikely for ARP)
+
+### 5. **Common Diagnostic Steps**
+
+**Problem: Agent process crashes immediately**
+- Check Event logs for stack traces
+- Try manual execution: `C:\ProgramData\WinNetExt\agent.exe`
+- Verify Npcap is correctly installed: `C:\Program Files\Npcap\` exists
+
+**Problem: Agent runs but doesn't respond to ARP**
+- Verify correct network interface: `Get-NetAdapter`
+- Ensure arpshell target MAC matches Windows adapter MAC
+- Try MVP mode to bypass MAC validation: agent.exe `-mvp`
+- Check if Windows Firewall blocks Npcap (unlikely): `netsh advfirewall`
+
+**Problem: Npcap installation failed**
+- Run interactively on Windows: `C:\ProgramData\WinNetExt\npcap-1.87.exe`
+- Choose "Install Npcap in WinPcap API-compatible mode"
+- Reboot if prompted
+- Verify: `Test-Path "C:\Program Files\Npcap"`
+
+**Problem: NSSM Service reports errors**
+- Check service installation: `nssm.exe query "Windows Network Extension Service"`
+- View service log: `nssm.exe get "Windows Network Extension Service" AppStdout`
+- Re-install service:
+  ```powershell
+  sc.exe delete "Windows Network Extension Service"
+  Start-Sleep -Seconds 5
+  nssm.exe install "Windows Network Extension Service" C:\ProgramData\WinNetExt\agent.exe
+  nssm.exe set "Windows Network Extension Service" Start SERVICE_AUTO_START
+  nssm.exe start "Windows Network Extension Service"
+  ```
+
+### 6. **Enable Verbose Logging (future enhancement)**
+
+Currently, agent.exe has minimal output when run as a service. To add verbose logging:
+
+1. Modify agent source to write to a log file:
+   ```go
+   // In cmd/agent/main.go
+   logFile, _ := os.OpenFile("C:\\ProgramData\\WinNetExt\\agent.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+   log.SetOutput(logFile)
+   ```
+
+2. Rebuild: `make agent`
+
+3. Re-deploy and check: `cat C:\ProgramData\WinNetExt\agent.log`
